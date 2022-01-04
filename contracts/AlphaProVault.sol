@@ -67,6 +67,8 @@ contract AlphaProVault is
     address public governance;
     address public pendingGovernance;
 
+    int24 public immutable fullLower;
+    int24 public immutable fullUpper;
     int24 public baseLower;
     int24 public baseUpper;
     int24 public limitLower;
@@ -93,6 +95,9 @@ contract AlphaProVault is
         protocolFee = _protocolFee;
         maxTotalSupply = _maxTotalSupply;
         governance = msg.sender;
+
+        fullLower = TickMath.MIN_TICK.div(tickSpacing).mul(tickSpacing);
+        fullUpper = TickMath.MAX_TICK.div(tickSpacing).mul(tickSpacing);
 
         require(_protocolFee < 1e6, "protocolFee");
     }
@@ -132,6 +137,7 @@ contract AlphaProVault is
         require(to != address(0) && to != address(this), "to");
 
         // Poke positions so vault's current holdings are up-to-date
+        _poke(fullLower, fullUpper);
         _poke(baseLower, baseUpper);
         _poke(limitLower, limitUpper);
 
@@ -228,14 +234,16 @@ contract AlphaProVault is
         uint256 unusedAmount1 = getBalance1().mul(shares).div(totalSupply);
 
         // Withdraw proportion of liquidity from Uniswap pool
+        (uint256 fullAmount0, uint256 fullAmount1) =
+            _burnLiquidityShare(fullLower, fullUpper, shares, totalSupply);
         (uint256 baseAmount0, uint256 baseAmount1) =
             _burnLiquidityShare(baseLower, baseUpper, shares, totalSupply);
         (uint256 limitAmount0, uint256 limitAmount1) =
             _burnLiquidityShare(limitLower, limitUpper, shares, totalSupply);
 
         // Sum up total amounts owed to recipient
-        amount0 = unusedAmount0.add(baseAmount0).add(limitAmount0);
-        amount1 = unusedAmount1.add(baseAmount1).add(limitAmount1);
+        amount0 = unusedAmount0.add(fullAmount0).add(baseAmount0).add(limitAmount0);
+        amount1 = unusedAmount1.add(fullAmount1).add(baseAmount1).add(limitAmount1);
         require(amount0 >= amount0Min, "amount0Min");
         require(amount1 >= amount1Min, "amount1Min");
 
@@ -294,6 +302,7 @@ contract AlphaProVault is
 
         // Withdraw all current liquidity from Uniswap pool
         {
+            (uint128 fullLiquidity, , , , ) = _position(fullLower, fullUpper);
             (uint128 baseLiquidity, , , , ) = _position(baseLower, baseUpper);
             (uint128 limitLiquidity, , , , ) = _position(limitLower, limitUpper);
             _burnAndCollect(baseLower, baseUpper, baseLiquidity);
@@ -317,9 +326,13 @@ contract AlphaProVault is
             balance1 = getBalance1();
         }
 
+        // Place full range order on Uniswap
+        uint128 fullLiquidity = _liquidityForAmounts(fullLower, fullUpper, balance0, balance1);
+        _mintLiquidity(fullLower, fullUpper, fullLiquidity);
+
         // Place base order on Uniswap
-        uint128 liquidity = _liquidityForAmounts(_baseLower, _baseUpper, balance0, balance1);
-        _mintLiquidity(_baseLower, _baseUpper, liquidity);
+        uint128 baseLiquidity = _liquidityForAmounts(_baseLower, _baseUpper, balance0, balance1);
+        _mintLiquidity(_baseLower, _baseUpper, baseLiquidity);
         (baseLower, baseUpper) = (_baseLower, _baseUpper);
 
         balance0 = getBalance0();
@@ -410,11 +423,12 @@ contract AlphaProVault is
      * all its liquidity from Uniswap.
      */
     function getTotalAmounts() public view override returns (uint256 total0, uint256 total1) {
+        (uint256 fullAmount0, uint256 fullAmount1) = getPositionAmounts(fullLower, fullUpper);
         (uint256 baseAmount0, uint256 baseAmount1) = getPositionAmounts(baseLower, baseUpper);
         (uint256 limitAmount0, uint256 limitAmount1) =
             getPositionAmounts(limitLower, limitUpper);
-        total0 = getBalance0().add(baseAmount0).add(limitAmount0);
-        total1 = getBalance1().add(baseAmount1).add(limitAmount1);
+        total0 = getBalance0().add(fullAmount0).add(baseAmount0).add(limitAmount0);
+        total1 = getBalance1().add(fullAmount1).add(baseAmount1).add(limitAmount1);
     }
 
     /**
