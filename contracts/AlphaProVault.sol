@@ -98,6 +98,7 @@ contract AlphaProVault is
         uint256 _maxTotalSupply,
         int24 _baseRadius,
         int24 _limitRadius,
+        uint256 _fullWeight,
         uint256 _period,
         int24 _minTickMove,
         int24 _maxTwapDeviation,
@@ -116,6 +117,7 @@ contract AlphaProVault is
         maxTotalSupply = _maxTotalSupply;
         baseRadius = _baseRadius;
         limitRadius = _limitRadius;
+        fullWeight = _fullWeight;
         period = _period;
         minTickMove = _minTickMove;
         maxTwapDeviation = _maxTwapDeviation;
