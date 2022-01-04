@@ -59,13 +59,20 @@ contract AlphaProVault is
     IUniswapV3Pool public immutable pool;
     IERC20 public immutable token0;
     IERC20 public immutable token1;
-    int24 public immutable tickSpacing;
+    int24 public tickSpacing;
 
     uint256 public protocolFee;
     uint256 public maxTotalSupply;
     address public strategy;
     address public governance;
     address public pendingGovernance;
+
+    int24 public baseThreshold;
+    int24 public limitThreshold;
+    uint256 public period;
+    int24 public minTickMove;
+    int24 public maxTwapDeviation;
+    uint32 public twapDuration;
 
     int24 public immutable fullLower;
     int24 public immutable fullUpper;
@@ -75,6 +82,8 @@ contract AlphaProVault is
     int24 public limitUpper;
     uint256 public accruedProtocolFees0;
     uint256 public accruedProtocolFees1;
+    uint256 public lastTimestamp;
+    int24 public lastTick;
 
     /**
      * @dev After deploying, strategy needs to be set via `setStrategy()`
@@ -96,8 +105,8 @@ contract AlphaProVault is
         maxTotalSupply = _maxTotalSupply;
         governance = msg.sender;
 
-        fullLower = TickMath.MIN_TICK.div(tickSpacing).mul(tickSpacing);
-        fullUpper = TickMath.MAX_TICK.div(tickSpacing).mul(tickSpacing);
+        fullLower = TickMath.MIN_TICK / tickSpacing * tickSpacing;
+        fullUpper = TickMath.MAX_TICK / tickSpacing * tickSpacing;
 
         require(_protocolFee < 1e6, "protocolFee");
     }
@@ -230,8 +239,8 @@ contract AlphaProVault is
         _burn(msg.sender, shares);
 
         // Calculate token amounts proportional to unused balances
-        uint256 unusedAmount0 = getBalance0().mul(shares).div(totalSupply);
-        uint256 unusedAmount1 = getBalance1().mul(shares).div(totalSupply);
+        amount0 = getBalance0().mul(shares).div(totalSupply);
+        amount1 = getBalance1().mul(shares).div(totalSupply);
 
         // Withdraw proportion of liquidity from Uniswap pool
         (uint256 fullAmount0, uint256 fullAmount1) =
@@ -242,8 +251,8 @@ contract AlphaProVault is
             _burnLiquidityShare(limitLower, limitUpper, shares, totalSupply);
 
         // Sum up total amounts owed to recipient
-        amount0 = unusedAmount0.add(fullAmount0).add(baseAmount0).add(limitAmount0);
-        amount1 = unusedAmount1.add(fullAmount1).add(baseAmount1).add(limitAmount1);
+        amount0 = amount0.add(fullAmount0).add(baseAmount0).add(limitAmount0);
+        amount1 = amount1.add(fullAmount1).add(baseAmount1).add(limitAmount1);
         require(amount0 >= amount0Min, "amount0Min");
         require(amount1 >= amount1Min, "amount1Min");
 
@@ -275,36 +284,33 @@ contract AlphaProVault is
     }
 
     /**
-     * @notice Updates vault's positions. Can only be called by the strategy.
-     * @dev Two orders are placed - a base order and a limit order. The base
-     * order is placed first with as much liquidity as possible. This order
+     * @notice Updates vault's positions.
+     * @dev Three orders are placed - a full-range order, a base order and a
+     * limit order. The full-range order is placed first. Then the base
+     * order is placed with as much remaining liquidity as possible. This order
      * should use up all of one token, leaving only the other one. This excess
      * amount is then placed as a single-sided bid or ask order.
      */
-    function rebalance(
-        int256 swapAmount,
-        uint160 sqrtPriceLimitX96,
-        int24 _baseLower,
-        int24 _baseUpper,
-        int24 _bidLower,
-        int24 _bidUpper,
-        int24 _askLower,
-        int24 _askUpper
-    ) external nonReentrant {
-        require(msg.sender == strategy, "strategy");
-        _checkRange(_baseLower, _baseUpper);
-        _checkRange(_bidLower, _bidUpper);
-        _checkRange(_askLower, _askUpper);
+    function rebalance() external override nonReentrant {
+        require(shouldRebalance(), "cannot rebalance");
 
         (, int24 tick, , , , , ) = pool.slot0();
-        require(_bidUpper <= tick, "bidUpper");
-        require(_askLower > tick, "askLower"); // inequality is strict as tick is rounded down
+        int24 tickFloor = _floor(tick);
+        int24 tickCeil = tickFloor + tickSpacing;
+
+        int24 _baseLower = tickFloor - baseThreshold;
+        int24 _baseUpper = tickCeil + baseThreshold;
+        int24 _bidLower = tickFloor - limitThreshold;
+        int24 _bidUpper = tickFloor;
+        int24 _askLower = tickCeil;
+        int24 _askUpper = tickCeil + limitThreshold;
 
         // Withdraw all current liquidity from Uniswap pool
         {
             (uint128 fullLiquidity, , , , ) = _position(fullLower, fullUpper);
             (uint128 baseLiquidity, , , , ) = _position(baseLower, baseUpper);
             (uint128 limitLiquidity, , , , ) = _position(limitLower, limitUpper);
+            _burnAndCollect(fullLower, fullUpper, fullLiquidity);
             _burnAndCollect(baseLower, baseUpper, baseLiquidity);
             _burnAndCollect(limitLower, limitUpper, limitLiquidity);
         }
@@ -314,27 +320,20 @@ contract AlphaProVault is
         uint256 balance1 = getBalance1();
         emit Snapshot(tick, balance0, balance1, totalSupply());
 
-        if (swapAmount != 0) {
-            pool.swap(
-                address(this),
-                swapAmount > 0,
-                swapAmount > 0 ? swapAmount : -swapAmount,
-                sqrtPriceLimitX96,
-                ""
-            );
-            balance0 = getBalance0();
-            balance1 = getBalance1();
+        // Place full range order on Uniswap
+        {
+            uint128 fullLiquidity = _liquidityForAmounts(fullLower, fullUpper, balance0, balance1);
+            _mintLiquidity(fullLower, fullUpper, fullLiquidity);
         }
 
-        // Place full range order on Uniswap
-        uint128 fullLiquidity = _liquidityForAmounts(fullLower, fullUpper, balance0, balance1);
-        _mintLiquidity(fullLower, fullUpper, fullLiquidity);
-
         // Place base order on Uniswap
-        uint128 baseLiquidity = _liquidityForAmounts(_baseLower, _baseUpper, balance0, balance1);
-        _mintLiquidity(_baseLower, _baseUpper, baseLiquidity);
-        (baseLower, baseUpper) = (_baseLower, _baseUpper);
+        {
+            uint128 baseLiquidity = _liquidityForAmounts(_baseLower, _baseUpper, balance0, balance1);
+            _mintLiquidity(_baseLower, _baseUpper, baseLiquidity);
+            (baseLower, baseUpper) = (_baseLower, _baseUpper);
+        }
 
+        // Recalculate unused balances after first two orders were placed
         balance0 = getBalance0();
         balance1 = getBalance1();
 
@@ -348,15 +347,66 @@ contract AlphaProVault is
             _mintLiquidity(_askLower, _askUpper, askLiquidity);
             (limitLower, limitUpper) = (_askLower, _askUpper);
         }
+
+        lastTimestamp = block.timestamp;
+        lastTick = tick;
     }
 
-    function _checkRange(int24 tickLower, int24 tickUpper) internal view {
-        int24 _tickSpacing = tickSpacing;
-        require(tickLower < tickUpper, "tickLower < tickUpper");
-        require(tickLower >= TickMath.MIN_TICK, "tickLower too low");
-        require(tickUpper <= TickMath.MAX_TICK, "tickUpper too high");
-        require(tickLower % _tickSpacing == 0, "tickLower % tickSpacing");
-        require(tickUpper % _tickSpacing == 0, "tickUpper % tickSpacing");
+    function shouldRebalance() public view override returns (bool) {
+        // check enough time has passed
+        if (block.timestamp < lastTimestamp.add(period)) {
+            return false;
+        }
+
+        // check price has moved enough
+        (, int24 tick, , , , , ) = pool.slot0();
+        int24 tickMove = tick > lastTick ? tick - lastTick : lastTick - tick;
+        if (tickMove < minTickMove) {
+            return false;
+        }
+
+        // check price near twap
+        int24 twap = getTwap();
+        int24 twapDeviation = tick > twap ? tick - twap : twap - tick;
+        if (twapDeviation > maxTwapDeviation) {
+            return false;
+        }
+
+        // check price not too close to boundary
+        int24 maxThreshold = baseThreshold > limitThreshold ? baseThreshold : limitThreshold;
+        if (
+            tick < TickMath.MIN_TICK + maxThreshold + tickSpacing ||
+            tick > TickMath.MAX_TICK - maxThreshold - tickSpacing
+        ) {
+            return false;
+        }
+
+        return true;
+    }
+
+    /// @dev Fetches time-weighted average price in ticks from Uniswap pool.
+    function getTwap() public view returns (int24) {
+        uint32 _twapDuration = twapDuration;
+        uint32[] memory secondsAgo = new uint32[](2);
+        secondsAgo[0] = _twapDuration;
+        secondsAgo[1] = 0;
+
+        (int56[] memory tickCumulatives, ) = pool.observe(secondsAgo);
+        return int24((tickCumulatives[1] - tickCumulatives[0]) / _twapDuration);
+    }
+
+    /// @dev Rounds tick down towards negative infinity so that it's a multiple
+    /// of `tickSpacing`.
+    function _floor(int24 tick) internal view returns (int24) {
+        int24 compressed = tick / tickSpacing;
+        if (tick < 0 && tick % tickSpacing != 0) compressed--;
+        return compressed * tickSpacing;
+    }
+
+    function _checkThreshold(int24 threshold, int24 _tickSpacing) internal pure {
+        require(threshold > 0, "threshold must be > 0");
+        require(threshold <= TickMath.MAX_TICK, "threshold too high");
+        require(threshold % _tickSpacing == 0, "threshold must be multiple of tickSpacing");
     }
 
     /// @dev Withdraws liquidity from a range and collects all fees in the
@@ -569,13 +619,33 @@ contract AlphaProVault is
         token.safeTransfer(to, amount);
     }
 
-    /**
-     * @notice Used to set the strategy contract that determines the position
-     * ranges and calls rebalance(). Must be called after this vault is
-     * deployed.
-     */
-    function setStrategy(address _strategy) external onlyGovernance {
-        strategy = _strategy;
+    function setBaseThreshold(int24 _baseThreshold) external onlyGovernance {
+        _checkThreshold(_baseThreshold, tickSpacing);
+        baseThreshold = _baseThreshold;
+    }
+
+    function setLimitThreshold(int24 _limitThreshold) external onlyGovernance {
+        _checkThreshold(_limitThreshold, tickSpacing);
+        limitThreshold = _limitThreshold;
+    }
+
+    function setPeriod(uint256 _period) external onlyGovernance {
+        period = _period;
+    }
+
+    function setMinTickMove(int24 _minTickMove) external onlyGovernance {
+        require(_minTickMove >= 0, "minTickMove must be >= 0");
+        minTickMove = _minTickMove;
+    }
+
+    function setMaxTwapDeviation(int24 _maxTwapDeviation) external onlyGovernance {
+        require(_maxTwapDeviation >= 0, "maxTwapDeviation must be >= 0");
+        maxTwapDeviation = _maxTwapDeviation;
+    }
+
+    function setTwapDuration(uint32 _twapDuration) external onlyGovernance {
+        require(_twapDuration > 0, "twapDuration must be > 0");
+        twapDuration = _twapDuration;
     }
 
     /**

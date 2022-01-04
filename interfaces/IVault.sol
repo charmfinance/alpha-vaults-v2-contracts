@@ -25,4 +25,8 @@ interface IVault {
     ) external returns (uint256, uint256);
 
     function getTotalAmounts() external view returns (uint256, uint256);
+
+    function rebalance() external;
+
+    function shouldRebalance() external view returns (bool);
 }
