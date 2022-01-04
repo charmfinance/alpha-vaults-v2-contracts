@@ -304,6 +304,8 @@ contract AlphaProVault is
         int24 tickFloor = _floor(tick);
         int24 tickCeil = tickFloor + tickSpacing;
 
+        int24 _fullLower = fullLower;
+        int24 _fullUpper = fullUpper;
         int24 _baseLower = tickFloor - baseThreshold;
         int24 _baseUpper = tickCeil + baseThreshold;
         int24 _bidLower = tickFloor - limitThreshold;
@@ -313,10 +315,10 @@ contract AlphaProVault is
 
         // Withdraw all current liquidity from Uniswap pool
         {
-            (uint128 fullLiquidity, , , , ) = _position(fullLower, fullUpper);
+            (uint128 fullLiquidity, , , , ) = _position(_fullLower, _fullUpper);
             (uint128 baseLiquidity, , , , ) = _position(baseLower, baseUpper);
             (uint128 limitLiquidity, , , , ) = _position(limitLower, limitUpper);
-            _burnAndCollect(fullLower, fullUpper, fullLiquidity);
+            _burnAndCollect(_fullLower, _fullUpper, fullLiquidity);
             _burnAndCollect(baseLower, baseUpper, baseLiquidity);
             _burnAndCollect(limitLower, limitUpper, limitLiquidity);
         }
@@ -328,9 +330,9 @@ contract AlphaProVault is
 
         // Place full range order on Uniswap
         {
-            uint128 maxLiquidity = _liquidityForAmounts(fullLower, fullUpper, balance0, balance1);
+            uint128 maxLiquidity = _liquidityForAmounts(_fullLower, _fullUpper, balance0, balance1);
             uint128 fullLiquidity = _toUint128(uint256(maxLiquidity).mul(fullWeight).div(1e6));
-            _mintLiquidity(fullLower, fullUpper, fullLiquidity);
+            _mintLiquidity(_fullLower, _fullUpper, fullLiquidity);
         }
 
         // Place base order on Uniswap
