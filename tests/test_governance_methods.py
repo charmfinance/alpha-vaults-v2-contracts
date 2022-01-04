@@ -137,7 +137,7 @@ def test_strategy_governance_methods(vault, gov, user, recipient):
 
 
 def test_factory_governance_methods(
-    factory, gov, user, recipient
+    factory, vault, gov, user, recipient
 ):
     # Check setting protocol fee
     with reverts("feeCollector"):
@@ -147,7 +147,15 @@ def test_factory_governance_methods(
     factory.setProtocolFee(0, {"from": gov})
     assert factory.protocolFee() == 0
 
-    # Check setting fee collector
+    # Check setting fee
+    with reverts("feeCollector"):
+        factory.setProtocolFee(0, {"from": user})
+    assert factory.protocolFee() == 0
+    assert vault.protocolFee() != 0
+    vault.rebalance({"from": user})
+    assert vault.protocolFee() == 0
+
+    # Check setting gov
     with reverts("feeCollector"):
         factory.setFeeCollector(recipient, {"from": user})
     assert factory.pendingFeeCollector() != recipient
