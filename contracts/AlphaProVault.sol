@@ -69,6 +69,7 @@ contract AlphaProVault is
 
     int24 public baseThreshold;
     int24 public limitThreshold;
+    uint256 public fullWeight;
     uint256 public period;
     int24 public minTickMove;
     int24 public maxTwapDeviation;
@@ -322,7 +323,8 @@ contract AlphaProVault is
 
         // Place full range order on Uniswap
         {
-            uint128 fullLiquidity = _liquidityForAmounts(fullLower, fullUpper, balance0, balance1);
+            uint128 maxLiquidity = _liquidityForAmounts(fullLower, fullUpper, balance0, balance1);
+            uint128 fullLiquidity = _toUint128(uint256(maxLiquidity).mul(fullWeight).div(1e6));
             _mintLiquidity(fullLower, fullUpper, fullLiquidity);
         }
 
@@ -627,6 +629,11 @@ contract AlphaProVault is
     function setLimitThreshold(int24 _limitThreshold) external onlyGovernance {
         _checkThreshold(_limitThreshold, tickSpacing);
         limitThreshold = _limitThreshold;
+    }
+
+    function setFullWeight(uint256 _fullWeight) external onlyGovernance {
+        require(_fullWeight <= 1e6, "fullWeight must be < 1e6");
+        fullWeight = _fullWeight;
     }
 
     function setPeriod(uint256 _period) external onlyGovernance {
