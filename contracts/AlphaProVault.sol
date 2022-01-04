@@ -61,11 +61,12 @@ contract AlphaProVault is
     IERC20 public immutable token1;
     int24 public tickSpacing;
 
-    uint256 public protocolFee;
-    uint256 public maxTotalSupply;
-    address public strategy;
     address public manager;
     address public pendingManager;
+    uint256 public maxTotalSupply;
+    address public feeRecipient;
+    address public pendingFeeRecipient;
+    uint256 public protocolFee;
 
     int24 public baseThreshold;
     int24 public limitThreshold;
@@ -94,15 +95,19 @@ contract AlphaProVault is
     constructor(
         address _pool,
         address _manager,
-        uint256 _maxTotalSupply
+        uint256 _maxTotalSupply,
+        address _feeRecipient,
+        uint256 _protocolFee
     ) ERC20("Alpha Vault", "AV") {
         pool = IUniswapV3Pool(_pool);
         token0 = IERC20(IUniswapV3Pool(_pool).token0());
         token1 = IERC20(IUniswapV3Pool(_pool).token1());
         tickSpacing = IUniswapV3Pool(_pool).tickSpacing();
 
-        maxTotalSupply = _maxTotalSupply;
         manager = _manager;
+        maxTotalSupply = _maxTotalSupply;
+        feeRecipient = _feeRecipient;
+        protocolFee = _protocolFee;
 
         fullLower = TickMath.MIN_TICK / tickSpacing * tickSpacing;
         fullUpper = TickMath.MAX_TICK / tickSpacing * tickSpacing;
@@ -600,7 +605,7 @@ contract AlphaProVault is
         uint256 amount0,
         uint256 amount1,
         address to
-    ) external onlyManager {
+    ) external onlyFeeRecipient {
         accruedProtocolFees0 = accruedProtocolFees0.sub(amount0);
         accruedProtocolFees1 = accruedProtocolFees1.sub(amount1);
         if (amount0 > 0) token0.safeTransfer(to, amount0);
@@ -657,7 +662,7 @@ contract AlphaProVault is
      * @notice Used to change the protocol fee charged on pool fees earned from
      * Uniswap, expressed as multiple of 1e-6.
      */
-    function setProtocolFee(uint256 _protocolFee) external onlyManager {
+    function setProtocolFee(uint256 _protocolFee) external onlyFeeRecipient {
         require(_protocolFee < 1e6, "protocolFee");
         protocolFee = _protocolFee;
     }
@@ -701,8 +706,30 @@ contract AlphaProVault is
         manager = msg.sender;
     }
 
+    /**
+     * @notice Governance address is not updated until the new manager
+     * address has called `acceptGovernance()` to accept this responsibility.
+     */
+    function setFeeRecipient(address _feeRecipient) external onlyFeeRecipient {
+        pendingFeeRecipient = _feeRecipient;
+    }
+
+    /**
+     * @notice `setFeeRecipient()` should be called by the existing fee recipient
+     * address prior to calling this function.
+     */
+    function acceptFeeRecipient() external {
+        require(msg.sender == pendingFeeRecipient, "pendingFeeRecipient");
+        feeRecipient = msg.sender;
+    }
+
     modifier onlyManager {
         require(msg.sender == manager, "manager");
+        _;
+    }
+
+    modifier onlyFeeRecipient {
+        require(msg.sender == feeRecipient, "feeRecipient");
         _;
     }
 }
