@@ -41,8 +41,10 @@ def router(TestRouter, gov):
 def pool(MockToken, router, pm, gov, users):
     UniswapV3Core = pm(UNISWAP_V3_CORE)
 
-    tokenA = gov.deploy(MockToken, "name A", "symbol A", 18)
-    tokenB = gov.deploy(MockToken, "name B", "symbol B", 18)
+    tokenA = gov.deploy(MockToken)
+    tokenB = gov.deploy(MockToken)
+    tokenA.initialize("name A", "symbol A", 18)
+    tokenB.initialize("name B", "symbol B", 18)
     fee = 3000
 
     factory = gov.deploy(UniswapV3Core.UniswapV3Factory)
