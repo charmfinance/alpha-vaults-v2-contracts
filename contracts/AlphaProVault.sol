@@ -68,8 +68,8 @@ contract AlphaProVault is
     uint256 public maxTotalSupply;
     uint256 public protocolFee;
 
-    int24 public baseThreshold;
-    int24 public limitThreshold;
+    int24 public baseRadius;
+    int24 public limitRadius;
     uint256 public fullWeight;
     uint256 public period;
     int24 public minTickMove;
@@ -96,6 +96,12 @@ contract AlphaProVault is
         address _pool,
         address _manager,
         uint256 _maxTotalSupply,
+        int24 _baseRadius,
+        int24 _limitRadius,
+        uint256 _period,
+        int24 _minTickMove,
+        int24 _maxTwapDeviation,
+        uint32 _twapDuration,
         address _factory
     ) public initializer {
         __ERC20_init("Alpha Vault", "AV");
@@ -108,6 +114,13 @@ contract AlphaProVault is
 
         manager = _manager;
         maxTotalSupply = _maxTotalSupply;
+        baseRadius = _baseRadius;
+        limitRadius = _limitRadius;
+        period = _period;
+        minTickMove = _minTickMove;
+        maxTwapDeviation = _maxTwapDeviation;
+        twapDuration = _twapDuration;
+
         factory = AlphaProVaultFactory(_factory);
         protocolFee = factory.protocolFee();
 
@@ -306,12 +319,12 @@ contract AlphaProVault is
 
         int24 _fullLower = fullLower;
         int24 _fullUpper = fullUpper;
-        int24 _baseLower = tickFloor - baseThreshold;
-        int24 _baseUpper = tickCeil + baseThreshold;
-        int24 _bidLower = tickFloor - limitThreshold;
+        int24 _baseLower = tickFloor - baseRadius;
+        int24 _baseUpper = tickCeil + baseRadius;
+        int24 _bidLower = tickFloor - limitRadius;
         int24 _bidUpper = tickFloor;
         int24 _askLower = tickCeil;
-        int24 _askUpper = tickCeil + limitThreshold;
+        int24 _askUpper = tickCeil + limitRadius;
 
         // Withdraw all current liquidity from Uniswap pool
         {
@@ -386,7 +399,7 @@ contract AlphaProVault is
         }
 
         // check price not too close to boundary
-        int24 maxThreshold = baseThreshold > limitThreshold ? baseThreshold : limitThreshold;
+        int24 maxThreshold = baseRadius > limitRadius ? baseRadius : limitRadius;
         if (
             tick < TickMath.MIN_TICK + maxThreshold + tickSpacing ||
             tick > TickMath.MAX_TICK - maxThreshold - tickSpacing
@@ -633,14 +646,14 @@ contract AlphaProVault is
         token.safeTransfer(to, amount);
     }
 
-    function setBaseThreshold(int24 _baseThreshold) external onlyManager {
-        _checkThreshold(_baseThreshold, tickSpacing);
-        baseThreshold = _baseThreshold;
+    function setBaseThreshold(int24 _baseRadius) external onlyManager {
+        _checkThreshold(_baseRadius, tickSpacing);
+        baseRadius = _baseRadius;
     }
 
-    function setLimitThreshold(int24 _limitThreshold) external onlyManager {
-        _checkThreshold(_limitThreshold, tickSpacing);
-        limitThreshold = _limitThreshold;
+    function setLimitThreshold(int24 _limitRadius) external onlyManager {
+        _checkThreshold(_limitRadius, tickSpacing);
+        limitRadius = _limitRadius;
     }
 
     function setFullWeight(uint256 _fullWeight) external onlyManager {

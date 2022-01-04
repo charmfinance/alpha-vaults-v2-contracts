@@ -23,10 +23,27 @@ contract AlphaProVaultFactory is CloneFactory {
     function createVault(
         address pool,
         address manager,
-        uint256 maxTotalSupply
+        uint256 maxTotalSupply,
+        int24 baseRadius,
+        int24 limitRadius,
+        uint256 period,
+        int24 minTickMove,
+        int24 maxTwapDeviation,
+        uint32 twapDuration
     ) external returns (address vaultAddress) {
         vaultAddress = createClone(template);
-        AlphaProVault(vaultAddress).initialize(pool, manager, maxTotalSupply, address(this));
+        AlphaProVault(vaultAddress).initialize(
+            pool,
+            manager,
+            maxTotalSupply,
+            baseRadius,
+            limitRadius,
+            period,
+            minTickMove,
+            maxTwapDeviation,
+            twapDuration,
+            address(this)
+        );
     }
 
     function numVaults() external view returns (uint256) {
