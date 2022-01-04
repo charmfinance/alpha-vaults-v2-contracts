@@ -1,8 +1,9 @@
-// SPDX-License-Identifier: Unlicense
+// SPDX-License-Identifier: GPL-3.0
 
-pragma solidity 0.7.6;
+pragma solidity ^0.7.6;
 
-import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20Upgradeable.sol";
+import "@openzeppelin/contracts/token/ERC20/SafeERC20Upgradeable.sol";
 
 import "@uniswap/v3-core/contracts/interfaces/IUniswapV3Pool.sol";
 import "@uniswap/v3-core/contracts/interfaces/callback/IUniswapV3MintCallback.sol";
@@ -15,7 +16,7 @@ import "@uniswap/v3-core/contracts/libraries/TickMath.sol";
  *         tests and lacks slippage and callback caller checks.
  */
 contract TestRouter is IUniswapV3MintCallback, IUniswapV3SwapCallback {
-    using SafeERC20 for IERC20;
+    using SafeERC20Upgradeable for IERC20Upgradeable;
 
     function mint(
         IUniswapV3Pool pool,
@@ -70,7 +71,7 @@ contract TestRouter is IUniswapV3MintCallback, IUniswapV3SwapCallback {
         IUniswapV3Pool pool = IUniswapV3Pool(msg.sender);
         address payer = abi.decode(data, (address));
 
-        IERC20(pool.token0()).safeTransferFrom(payer, msg.sender, amount0);
-        IERC20(pool.token1()).safeTransferFrom(payer, msg.sender, amount1);
+        IERC20Upgradeable(pool.token0()).safeTransferFrom(payer, msg.sender, amount0);
+        IERC20Upgradeable(pool.token1()).safeTransferFrom(payer, msg.sender, amount1);
     }
 }

@@ -2,12 +2,11 @@
 
 pragma solidity ^0.7.6;
 
-import "@openzeppelin/contracts/math/Math.sol";
-import "@openzeppelin/contracts/math/SafeMath.sol";
-import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
-import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/math/SafeMathUpgradeable.sol";
+import "@openzeppelin/contracts/token/ERC20/ERC20Upgradeable.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20Upgradeable.sol";
+import "@openzeppelin/contracts/token/ERC20/SafeERC20Upgradeable.sol";
+import "@openzeppelin/contracts/utils/ReentrancyGuardUpgradeable.sol";
 import "@uniswap/v3-core/contracts/interfaces/callback/IUniswapV3MintCallback.sol";
 import "@uniswap/v3-core/contracts/interfaces/callback/IUniswapV3SwapCallback.sol";
 import "@uniswap/v3-core/contracts/interfaces/IUniswapV3Pool.sol";
@@ -27,11 +26,11 @@ contract AlphaProVault is
     IVault,
     IUniswapV3MintCallback,
     IUniswapV3SwapCallback,
-    ERC20,
-    ReentrancyGuard
+    ERC20Upgradeable,
+    ReentrancyGuardUpgradeable
 {
-    using SafeERC20 for IERC20;
-    using SafeMath for uint256;
+    using SafeERC20Upgradeable for IERC20Upgradeable;
+    using SafeMathUpgradeable for uint256;
 
     event Deposit(
         address indexed sender,
@@ -58,11 +57,11 @@ contract AlphaProVault is
 
     event Snapshot(int24 tick, uint256 totalAmount0, uint256 totalAmount1, uint256 totalSupply);
 
-    IUniswapV3Pool public immutable pool;
-    IERC20 public immutable token0;
-    IERC20 public immutable token1;
+    IUniswapV3Pool public pool;
+    IERC20Upgradeable public token0;
+    IERC20Upgradeable public token1;
     int24 public tickSpacing;
-    AlphaProVaultFactory public immutable factory;
+    AlphaProVaultFactory public factory;
 
     address public manager;
     address public pendingManager;
@@ -77,8 +76,8 @@ contract AlphaProVault is
     int24 public maxTwapDeviation;
     uint32 public twapDuration;
 
-    int24 public immutable fullLower;
-    int24 public immutable fullUpper;
+    int24 public fullLower;
+    int24 public fullUpper;
     int24 public baseLower;
     int24 public baseUpper;
     int24 public limitLower;
@@ -93,15 +92,18 @@ contract AlphaProVault is
      * @param _pool Underlying Uniswap V3 pool
      * @param _maxTotalSupply Cap on total supply
      */
-    constructor(
+    function initialize(
         address _pool,
         address _manager,
         uint256 _maxTotalSupply,
         address _factory
-    ) ERC20("Alpha Vault", "AV") {
+    ) public initializer {
+        __ERC20_init("Alpha Vault", "AV");
+        __ReentrancyGuard_init();
+
         pool = IUniswapV3Pool(_pool);
-        token0 = IERC20(IUniswapV3Pool(_pool).token0());
-        token1 = IERC20(IUniswapV3Pool(_pool).token1());
+        token0 = IERC20Upgradeable(IUniswapV3Pool(_pool).token0());
+        token1 = IERC20Upgradeable(IUniswapV3Pool(_pool).token1());
         tickSpacing = IUniswapV3Pool(_pool).tickSpacing();
 
         manager = _manager;
@@ -200,7 +202,7 @@ contract AlphaProVault is
             // For first deposit, just use the amounts desired
             amount0 = amount0Desired;
             amount1 = amount1Desired;
-            shares = Math.max(amount0, amount1);
+            shares = amount0 > amount1 ? amount0 : amount1;
         } else if (total0 == 0) {
             amount1 = amount1Desired;
             shares = amount1.mul(totalSupply).div(total1);
@@ -208,7 +210,9 @@ contract AlphaProVault is
             amount0 = amount0Desired;
             shares = amount0.mul(totalSupply).div(total0);
         } else {
-            uint256 cross = Math.min(amount0Desired.mul(total1), amount1Desired.mul(total0));
+            uint256 cross0 = amount0Desired.mul(total1);
+            uint256 cross1 = amount1Desired.mul(total0);
+            uint256 cross = cross0 > cross1 ? cross1 : cross0;
             require(cross > 0, "cross");
 
             // Round up amounts
@@ -619,7 +623,7 @@ contract AlphaProVault is
      * @notice Removes tokens accidentally sent to this vault.
      */
     function sweep(
-        IERC20 token,
+        IERC20Upgradeable token,
         uint256 amount,
         address to
     ) external onlyManager {
