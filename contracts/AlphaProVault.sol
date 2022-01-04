@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: Unlicense
+// SPDX-License-Identifier: GPL-3.0
 
 pragma solidity 0.7.6;
 
@@ -64,8 +64,8 @@ contract AlphaProVault is
     uint256 public protocolFee;
     uint256 public maxTotalSupply;
     address public strategy;
-    address public governance;
-    address public pendingGovernance;
+    address public manager;
+    address public pendingManager;
 
     int24 public baseThreshold;
     int24 public limitThreshold;
@@ -89,12 +89,11 @@ contract AlphaProVault is
     /**
      * @dev After deploying, strategy needs to be set via `setStrategy()`
      * @param _pool Underlying Uniswap V3 pool
-     * @param _protocolFee Protocol fee expressed as multiple of 1e-6
      * @param _maxTotalSupply Cap on total supply
      */
     constructor(
         address _pool,
-        uint256 _protocolFee,
+        address _manager,
         uint256 _maxTotalSupply
     ) ERC20("Alpha Vault", "AV") {
         pool = IUniswapV3Pool(_pool);
@@ -102,9 +101,8 @@ contract AlphaProVault is
         token1 = IERC20(IUniswapV3Pool(_pool).token1());
         tickSpacing = IUniswapV3Pool(_pool).tickSpacing();
 
-        protocolFee = _protocolFee;
         maxTotalSupply = _maxTotalSupply;
-        governance = msg.sender;
+        manager = _manager;
 
         fullLower = TickMath.MIN_TICK / tickSpacing * tickSpacing;
         fullUpper = TickMath.MAX_TICK / tickSpacing * tickSpacing;
@@ -602,7 +600,7 @@ contract AlphaProVault is
         uint256 amount0,
         uint256 amount1,
         address to
-    ) external onlyGovernance {
+    ) external onlyManager {
         accruedProtocolFees0 = accruedProtocolFees0.sub(amount0);
         accruedProtocolFees1 = accruedProtocolFees1.sub(amount1);
         if (amount0 > 0) token0.safeTransfer(to, amount0);
@@ -616,41 +614,41 @@ contract AlphaProVault is
         IERC20 token,
         uint256 amount,
         address to
-    ) external onlyGovernance {
+    ) external onlyManager {
         require(token != token0 && token != token1, "token");
         token.safeTransfer(to, amount);
     }
 
-    function setBaseThreshold(int24 _baseThreshold) external onlyGovernance {
+    function setBaseThreshold(int24 _baseThreshold) external onlyManager {
         _checkThreshold(_baseThreshold, tickSpacing);
         baseThreshold = _baseThreshold;
     }
 
-    function setLimitThreshold(int24 _limitThreshold) external onlyGovernance {
+    function setLimitThreshold(int24 _limitThreshold) external onlyManager {
         _checkThreshold(_limitThreshold, tickSpacing);
         limitThreshold = _limitThreshold;
     }
 
-    function setFullWeight(uint256 _fullWeight) external onlyGovernance {
+    function setFullWeight(uint256 _fullWeight) external onlyManager {
         require(_fullWeight <= 1e6, "fullWeight must be < 1e6");
         fullWeight = _fullWeight;
     }
 
-    function setPeriod(uint256 _period) external onlyGovernance {
+    function setPeriod(uint256 _period) external onlyManager {
         period = _period;
     }
 
-    function setMinTickMove(int24 _minTickMove) external onlyGovernance {
+    function setMinTickMove(int24 _minTickMove) external onlyManager {
         require(_minTickMove >= 0, "minTickMove must be >= 0");
         minTickMove = _minTickMove;
     }
 
-    function setMaxTwapDeviation(int24 _maxTwapDeviation) external onlyGovernance {
+    function setMaxTwapDeviation(int24 _maxTwapDeviation) external onlyManager {
         require(_maxTwapDeviation >= 0, "maxTwapDeviation must be >= 0");
         maxTwapDeviation = _maxTwapDeviation;
     }
 
-    function setTwapDuration(uint32 _twapDuration) external onlyGovernance {
+    function setTwapDuration(uint32 _twapDuration) external onlyManager {
         require(_twapDuration > 0, "twapDuration must be > 0");
         twapDuration = _twapDuration;
     }
@@ -659,7 +657,7 @@ contract AlphaProVault is
      * @notice Used to change the protocol fee charged on pool fees earned from
      * Uniswap, expressed as multiple of 1e-6.
      */
-    function setProtocolFee(uint256 _protocolFee) external onlyGovernance {
+    function setProtocolFee(uint256 _protocolFee) external onlyManager {
         require(_protocolFee < 1e6, "protocolFee");
         protocolFee = _protocolFee;
     }
@@ -670,7 +668,7 @@ contract AlphaProVault is
      * supply rather than amounts of token0 and token1 as those amounts
      * fluctuate naturally over time.
      */
-    function setMaxTotalSupply(uint256 _maxTotalSupply) external onlyGovernance {
+    function setMaxTotalSupply(uint256 _maxTotalSupply) external onlyManager {
         maxTotalSupply = _maxTotalSupply;
     }
 
@@ -681,30 +679,30 @@ contract AlphaProVault is
         int24 tickLower,
         int24 tickUpper,
         uint128 liquidity
-    ) external onlyGovernance {
+    ) external onlyManager {
         pool.burn(tickLower, tickUpper, liquidity);
         pool.collect(address(this), tickLower, tickUpper, type(uint128).max, type(uint128).max);
     }
 
     /**
-     * @notice Governance address is not updated until the new governance
+     * @notice Governance address is not updated until the new manager
      * address has called `acceptGovernance()` to accept this responsibility.
      */
-    function setGovernance(address _governance) external onlyGovernance {
-        pendingGovernance = _governance;
+    function setManager(address _manager) external onlyManager {
+        pendingManager = _manager;
     }
 
     /**
-     * @notice `setGovernance()` should be called by the existing governance
+     * @notice `setManager()` should be called by the existing manager
      * address prior to calling this function.
      */
-    function acceptGovernance() external {
-        require(msg.sender == pendingGovernance, "pendingGovernance");
-        governance = msg.sender;
+    function acceptManager() external {
+        require(msg.sender == pendingManager, "pendingManager");
+        manager = msg.sender;
     }
 
-    modifier onlyGovernance {
-        require(msg.sender == governance, "governance");
+    modifier onlyManager {
+        require(msg.sender == manager, "manager");
         _;
     }
 }
