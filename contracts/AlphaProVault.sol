@@ -351,17 +351,17 @@ contract AlphaProVault is
         }
 
         // Place base order on Uniswap
+        balance0 = getBalance0();
+        balance1 = getBalance1();
         {
             uint128 baseLiquidity = _liquidityForAmounts(_baseLower, _baseUpper, balance0, balance1);
             _mintLiquidity(_baseLower, _baseUpper, baseLiquidity);
             (baseLower, baseUpper) = (_baseLower, _baseUpper);
         }
 
-        // Recalculate unused balances after first two orders were placed
+        // Place bid or ask order on Uniswap depending on which token is left
         balance0 = getBalance0();
         balance1 = getBalance1();
-
-        // Place bid or ask order on Uniswap depending on which token is left
         uint128 bidLiquidity = _liquidityForAmounts(_bidLower, _bidUpper, balance0, balance1);
         uint128 askLiquidity = _liquidityForAmounts(_askLower, _askUpper, balance0, balance1);
         if (bidLiquidity > askLiquidity) {
@@ -401,10 +401,10 @@ contract AlphaProVault is
         }
 
         // check price not too close to boundary
-        int24 maxThreshold = baseRadius > limitRadius ? baseRadius : limitRadius;
+        int24 maxRadius = baseRadius > limitRadius ? baseRadius : limitRadius;
         if (
-            tick < TickMath.MIN_TICK + maxThreshold + tickSpacing ||
-            tick > TickMath.MAX_TICK - maxThreshold - tickSpacing
+            tick < TickMath.MIN_TICK + maxRadius + tickSpacing ||
+            tick > TickMath.MAX_TICK - maxRadius - tickSpacing
         ) {
             return false;
         }
@@ -431,10 +431,10 @@ contract AlphaProVault is
         return compressed * tickSpacing;
     }
 
-    function _checkThreshold(int24 threshold, int24 _tickSpacing) internal pure {
-        require(threshold > 0, "threshold must be > 0");
-        require(threshold <= TickMath.MAX_TICK, "threshold too high");
-        require(threshold % _tickSpacing == 0, "threshold must be multiple of tickSpacing");
+    function _checkRadius(int24 radius, int24 _tickSpacing) internal pure {
+        require(radius > 0, "radius must be > 0");
+        require(radius <= TickMath.MAX_TICK, "radius too high");
+        require(radius % _tickSpacing == 0, "radius must be multiple of tickSpacing");
     }
 
     /// @dev Withdraws liquidity from a range and collects all fees in the
@@ -648,13 +648,13 @@ contract AlphaProVault is
         token.safeTransfer(to, amount);
     }
 
-    function setBaseThreshold(int24 _baseRadius) external onlyManager {
-        _checkThreshold(_baseRadius, tickSpacing);
+    function setBaseRadius(int24 _baseRadius) external onlyManager {
+        _checkRadius(_baseRadius, tickSpacing);
         baseRadius = _baseRadius;
     }
 
-    function setLimitThreshold(int24 _limitRadius) external onlyManager {
-        _checkThreshold(_limitRadius, tickSpacing);
+    function setLimitRadius(int24 _limitRadius) external onlyManager {
+        _checkRadius(_limitRadius, tickSpacing);
         limitRadius = _limitRadius;
     }
 

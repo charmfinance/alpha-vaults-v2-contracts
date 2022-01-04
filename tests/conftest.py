@@ -23,13 +23,8 @@ def recipient(accounts):
 
 
 @pytest.fixture(scope="module")
-def keeper(accounts):
-    yield accounts[3]
-
-
-@pytest.fixture(scope="module")
-def users(gov, user, recipient, keeper):
-    yield [gov, user, recipient, keeper]
+def users(gov, user, recipient):
+    yield [gov, user, recipient]
 
 
 @pytest.fixture(scope="module")
@@ -79,32 +74,46 @@ def tokens(MockToken, pool):
 
 
 @pytest.fixture
-def vault(AlphaProVault, AlphaStrategy, pool, router, tokens, gov, users, keeper):
+def factory(AlphaProVaultFactory, AlphaProVault, gov):
+    template = gov.deploy(AlphaProVault)
+
     # protocolFee = 10000 (1%)
+    yield gov.deploy(AlphaProVaultFactory, template, gov, 10000)
+
+
+@pytest.fixture
+def vault(AlphaProVault, factory, pool, router, tokens, gov, users):
     # maxTotalSupply = 100e18 (100 tokens)
-    vault = gov.deploy(AlphaProVault, pool, 10000, 100e18)
+    # baseThreshold = 2400
+    # limitThreshold = 1200
+    # fullWeight = 500000 (50%)
+    # period = 0
+    # minTickMove = 0
+    # maxTwapDeviation = 200000 (just a big number)
+    # twapDuration = 600 (10 minutes)
+    tx = factory.createVault(
+        pool,
+        gov,
+        100e18,
+        2400,
+        1200,
+        500000,
+        0,
+        0,
+        200000,
+        600
+    )
+    vault = AlphaProVault.at(tx.return_value)
 
     for u in users:
         tokens[0].approve(vault, 100e18, {"from": u})
         tokens[1].approve(vault, 10000e18, {"from": u})
 
-    # baseThreshold = 2400
-    # limitThreshold = 1200
-    # maxTwapDeviation = 200000 (just a big number)
-    # twapDuration = 600 (10 minutes)
-    strategy = gov.deploy(AlphaStrategy, vault, 2400, 1200, 200000, 600, keeper)
-    vault.setStrategy(strategy, {"from": gov})
-
     yield vault
 
 
 @pytest.fixture
-def strategy(AlphaStrategy, vault):
-    return AlphaStrategy.at(vault.strategy())
-
-
-@pytest.fixture
-def vaultAfterPriceMove(vault, strategy, pool, router, gov, keeper):
+def vaultAfterPriceMove(vault, pool, router, gov):
 
     # Deposit and move price to simulate existing activity
     vault.deposit(1e16, 1e18, 0, 0, gov, {"from": gov})
@@ -116,7 +125,7 @@ def vaultAfterPriceMove(vault, strategy, pool, router, gov, keeper):
     assert tick != prevTick
 
     # Rebalance vault
-    strategy.rebalance({"from": keeper})
+    vault.rebalance({"from": gov})
 
     # Check vault holds both tokens
     total0, total1 = vault.getTotalAmounts()
@@ -125,51 +134,11 @@ def vaultAfterPriceMove(vault, strategy, pool, router, gov, keeper):
     yield vault
 
 
-@pytest.fixture
-def vaultOnlyWithToken0(vault, strategy, pool, router, gov, keeper):
-
-    # Deposit
-    vault.deposit(1e14, 1e16, 0, 0, gov, {"from": gov})
-
-    # Rebalance vault
-    strategy.rebalance({"from": keeper})
-
-    # Swap token0 -> token1
-    router.swap(pool, True, 1e16, {"from": gov})
-
-    # Check vault holds only token0
-    total0, total1 = vault.getTotalAmounts()
-    assert total0 > 0
-    assert total1 == 0
-
-    yield vault
-
-
-@pytest.fixture
-def vaultOnlyWithToken1(vault, strategy, pool, router, gov, keeper):
-
-    # Deposit
-    vault.deposit(1e14, 1e16, 0, 0, gov, {"from": gov})
-
-    # Rebalance vault
-    strategy.rebalance({"from": keeper})
-
-    # Swap token1 -> token0
-    router.swap(pool, False, 1e18, {"from": gov})
-
-    # Check vault holds only token0
-    total0, total1 = vault.getTotalAmounts()
-    assert total0 == 0
-    assert total1 > 0
-
-    yield vault
-
-
-# returns method to set up a pool, vault and strategy. can be used in
+# returns method to set up a pool, factory and vault. can be used in
 # hypothesis tests where function-scoped fixtures are not allowed
 @pytest.fixture(scope="module")
 def createPoolVaultStrategy(
-    pm, AlphaProVault, AlphaStrategy, MockToken, router, gov, keeper, users
+    pm, AlphaProVault, AlphaStrategy, MockToken, router, gov, users
 ):
     UniswapV3Core = pm(UNISWAP_V3_CORE)
 
@@ -195,14 +164,37 @@ def createPoolVaultStrategy(
         pool.increaseObservationCardinalityNext(100, {"from": gov})
         chain.sleep(3600)
 
-        vault = gov.deploy(AlphaProVault, pool, 10000, 100e18)
+        template = gov.deploy(AlphaProVault)
+
+        # protocolFee = 10000 (1%)
+        factory = gov.deploy(AlphaProVaultFactory, template, gov, 10000)
+
+        # maxTotalSupply = 100e18 (100 tokens)
+        # baseThreshold = 2400
+        # limitThreshold = 1200
+        # fullWeight = 500000 (50%)
+        # period = 0
+        # minTickMove = 0
+        # maxTwapDeviation = 200000 (just a big number)
+        # twapDuration = 600 (10 minutes)
+        tx = factory.createVault(
+            pool,
+            gov,
+            100e18,
+            2400,
+            1200,
+            500000,
+            0,
+            0,
+            200000,
+            600
+        )
+        vault = AlphaProVault.at(tx.return_value)
         for u in users:
             tokenA.approve(vault, 100e18, {"from": u})
             tokenB.approve(vault, 10000e18, {"from": u})
 
-        strategy = gov.deploy(AlphaStrategy, vault, 2400, 1200, 200000, 600, keeper)
-        vault.setStrategy(strategy, {"from": gov})
-        return pool, vault, strategy
+        return pool, factory, vault
 
     yield f
 

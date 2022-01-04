@@ -24,7 +24,6 @@ def test_deposit_invariants(
     router,
     gov,
     user,
-    keeper,
     amount0Desired,
     amount1Desired,
     buy,
@@ -37,7 +36,7 @@ def test_deposit_invariants(
 
     # Simulate deposit and random price move
     vault.deposit(1e16, 1e18, 0, 0, user, {"from": user})
-    strategy.rebalance({"from": keeper})
+    vault.rebalance({"from": user})
     router.swap(pool, buy, qty, {"from": user})
 
     # Poke Uniswap amounts owed to include fees
@@ -87,7 +86,6 @@ def test_withdraw_invariants(
     router,
     gov,
     user,
-    keeper,
     share_frac,
     buy,
     qty,
@@ -96,7 +94,7 @@ def test_withdraw_invariants(
 
     # Simulate deposit and random price move
     vault.deposit(1e16, 1e18, 0, 0, user, {"from": user})
-    strategy.rebalance({"from": keeper})
+    vault.rebalance({"from": user})
     router.swap(pool, buy, qty, {"from": user})
 
     # Poke Uniswap amounts owed to include fees
@@ -133,7 +131,6 @@ def test_rebalance_invariants(
     router,
     gov,
     user,
-    keeper,
     amount0Desired,
     amount1Desired,
     buy,
@@ -146,7 +143,7 @@ def test_rebalance_invariants(
 
     # Simulate random deposit and random price move
     vault.deposit(amount0Desired, amount1Desired, 0, 0, user, {"from": user})
-    strategy.rebalance({"from": keeper})
+    vault.rebalance({"from": user})
     router.swap(pool, buy, qty, {"from": user})
 
     # Ignore TWAP deviation
@@ -159,7 +156,7 @@ def test_rebalance_invariants(
     # Store totals
     total0, total1 = vault.getTotalAmounts()
 
-    strategy.rebalance({"from": keeper})
+    vault.rebalance({"from": user})
 
     # Check leftover balances is low
     tokens = MockToken.at(pool.token0()), MockToken.at(pool.token1())
@@ -186,7 +183,6 @@ def test_cannot_make_instant_profit_from_deposit_then_withdraw(
     router,
     gov,
     user,
-    keeper,
     amount0Desired,
     amount1Desired,
     buy,
@@ -199,7 +195,7 @@ def test_cannot_make_instant_profit_from_deposit_then_withdraw(
 
     # Simulate deposit and random price move
     vault.deposit(1e16, 1e18, 0, 0, user, {"from": user})
-    strategy.rebalance({"from": keeper})
+    vault.rebalance({"from": user})
     router.swap(pool, buy, qty, {"from": user})
 
     # Deposit
@@ -235,7 +231,6 @@ def test_cannot_make_instant_profit_from_manipulated_deposit(
     router,
     gov,
     user,
-    keeper,
     amount0Desired,
     amount1Desired,
     buy,
@@ -251,7 +246,7 @@ def test_cannot_make_instant_profit_from_manipulated_deposit(
 
     # Simulate deposit and random price move
     vault.deposit(1e16, 1e18, 0, 0, user, {"from": user})
-    strategy.rebalance({"from": keeper})
+    vault.rebalance({"from": user})
     router.swap(pool, buy, qty, {"from": user})
 
     # Store balances and totals before
@@ -307,7 +302,6 @@ def test_cannot_make_instant_profit_from_manipulated_withdraw(
     router,
     gov,
     user,
-    keeper,
     amount0Desired,
     amount1Desired,
     buy,
@@ -323,7 +317,7 @@ def test_cannot_make_instant_profit_from_manipulated_withdraw(
 
     # Simulate deposit and random price move
     vault.deposit(1e16, 1e18, 0, 0, user, {"from": user})
-    strategy.rebalance({"from": keeper})
+    vault.rebalance({"from": user})
     router.swap(pool, buy, qty, {"from": user})
 
     # Store initial balances
@@ -376,7 +370,6 @@ def test_cannot_make_instant_profit_around_rebalance(
     router,
     gov,
     user,
-    keeper,
     amount0Desired,
     amount1Desired,
     buy,
@@ -391,7 +384,7 @@ def test_cannot_make_instant_profit_around_rebalance(
 
     # Simulate deposit and random price move
     vault.deposit(1e16, 1e18, 0, 0, user, {"from": user})
-    strategy.rebalance({"from": keeper})
+    vault.rebalance({"from": user})
     router.swap(pool, buy, qty, {"from": user})
 
     # Poke Uniswap amounts owed to include fees
@@ -406,7 +399,7 @@ def test_cannot_make_instant_profit_around_rebalance(
     shares, amount0Deposit, amount1Deposit = tx.return_value
 
     # Rebalance
-    strategy.rebalance({"from": keeper})
+    vault.rebalance({"from": user})
 
     # Withdraw all
     tx = vault.withdraw(shares, 0, 0, user, {"from": user})

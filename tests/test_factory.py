@@ -14,6 +14,7 @@ def test_create_vault(AlphaProVault, AlphaProVaultFactory, pool, gov):
         100e18,
         2000,
         1000,
+        300000,
         86400,
         100,
         200,
@@ -28,6 +29,7 @@ def test_create_vault(AlphaProVault, AlphaProVaultFactory, pool, gov):
     assert vault.maxTotalSupply() == 100e18
     assert vault.baseRadius() == 2000
     assert vault.limitRadius() == 1000
+    assert vault.fullWeight() == 300000
     assert vault.period() == 86400
     assert vault.minTickMove() == 100
     assert vault.maxTwapDeviation() == 200
