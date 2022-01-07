@@ -75,7 +75,7 @@ def test_collect_protocol_fees(
 
     balance0 = tokens[0].balanceOf(recipient)
     balance1 = tokens[1].balanceOf(recipient)
-    with reverts("feeCollector"):
+    with reverts("governance"):
         vault.collectProtocol(1e3, 1e4, recipient, {"from": user})
     with reverts("SafeMath: subtraction overflow"):
         vault.collectProtocol(1e18, 1e4, recipient, {"from": gov})
@@ -140,7 +140,7 @@ def test_factory_governance_methods(
     factory, vault, gov, user, recipient
 ):
     # Check setting protocol fee
-    with reverts("feeCollector"):
+    with reverts("governance"):
         factory.setProtocolFee(0, {"from": user})
     with reverts("protocolFee"):
         factory.setProtocolFee(1e6, {"from": gov})
@@ -148,7 +148,7 @@ def test_factory_governance_methods(
     assert factory.protocolFee() == 0
 
     # Check setting fee
-    with reverts("feeCollector"):
+    with reverts("governance"):
         factory.setProtocolFee(0, {"from": user})
     assert factory.protocolFee() == 0
     assert vault.protocolFee() != 0
@@ -156,16 +156,16 @@ def test_factory_governance_methods(
     assert vault.protocolFee() == 0
 
     # Check setting gov
-    with reverts("feeCollector"):
-        factory.setFeeCollector(recipient, {"from": user})
-    assert factory.pendingFeeCollector() != recipient
-    factory.setFeeCollector(recipient, {"from": gov})
-    assert factory.pendingFeeCollector() == recipient
+    with reverts("governance"):
+        factory.setGovernance(recipient, {"from": user})
+    assert factory.pendingGovernance() != recipient
+    factory.setGovernance(recipient, {"from": gov})
+    assert factory.pendingGovernance() == recipient
 
     # Check accepting gov
-    with reverts("pendingFeeCollector"):
-        factory.acceptFeeCollector({"from": user})
-    assert factory.feeCollector() != recipient
-    factory.acceptFeeCollector({"from": recipient})
-    assert factory.feeCollector() == recipient
+    with reverts("pendingGovernance"):
+        factory.acceptGovernance({"from": user})
+    assert factory.governance() != recipient
+    factory.acceptGovernance({"from": recipient})
+    assert factory.governance() == recipient
 

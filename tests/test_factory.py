@@ -5,7 +5,7 @@ def test_create_vault(AlphaProVault, AlphaProVaultFactory, pool, gov):
     template = gov.deploy(AlphaProVault)
     factory = gov.deploy(AlphaProVaultFactory, template, gov, 10000)
     assert factory.template() == template
-    assert factory.feeCollector() == gov
+    assert factory.governance() == gov
     assert factory.protocolFee() == 10000
     
     tx = factory.createVault(
@@ -29,7 +29,7 @@ def test_create_vault(AlphaProVault, AlphaProVaultFactory, pool, gov):
     assert vault.maxTotalSupply() == 100e18
     assert vault.baseRadius() == 2000
     assert vault.limitRadius() == 1000
-    assert vault.fullWeight() == 300000
+    assert vault.fullRangeWeight() == 300000
     assert vault.period() == 86400
     assert vault.minTickMove() == 100
     assert vault.maxTwapDeviation() == 200

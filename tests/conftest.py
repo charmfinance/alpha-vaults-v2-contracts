@@ -138,13 +138,15 @@ def vaultAfterPriceMove(vault, pool, router, gov):
 # hypothesis tests where function-scoped fixtures are not allowed
 @pytest.fixture(scope="module")
 def createPoolVaultStrategy(
-    pm, AlphaProVault, AlphaStrategy, MockToken, router, gov, users
+    pm, AlphaProVaultFactory, AlphaProVault, MockToken, router, gov, users
 ):
     UniswapV3Core = pm(UNISWAP_V3_CORE)
 
     def f():
-        tokenA = gov.deploy(MockToken, "name A", "symbol A", 18)
-        tokenB = gov.deploy(MockToken, "name B", "symbol B", 18)
+        tokenA = gov.deploy(MockToken)
+        tokenB = gov.deploy(MockToken)
+        tokenA.initialize("name A", "symbol A", 18)
+        tokenB.initialize("name B", "symbol B", 18)
         fee = 3000
 
         for u in users:
