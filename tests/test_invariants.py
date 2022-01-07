@@ -29,10 +29,10 @@ def test_deposit_invariants(
     buy,
     qty,
 ):
-    pool, vault, strategy = createPoolVaultStrategy()
+    pool, factory, vault = createPoolVaultStrategy()
 
     # Set fee to 0 since this when an arb is most likely to work
-    vault.setProtocolFee(0, {"from": gov})
+    factory.setProtocolFee(0, {"from": gov})
 
     # Simulate deposit and random price move
     vault.deposit(1e16, 1e18, 0, 0, user, {"from": user})
@@ -90,7 +90,7 @@ def test_withdraw_invariants(
     buy,
     qty,
 ):
-    pool, vault, strategy = createPoolVaultStrategy()
+    pool, factory, vault = createPoolVaultStrategy()
 
     # Simulate deposit and random price move
     vault.deposit(1e16, 1e18, 0, 0, user, {"from": user})
@@ -136,10 +136,10 @@ def test_rebalance_invariants(
     buy,
     qty,
 ):
-    pool, vault, strategy = createPoolVaultStrategy()
+    pool, factory, vault = createPoolVaultStrategy()
 
     # Set fee to 0 since this when an arb is most likely to work
-    vault.setProtocolFee(0, {"from": gov})
+    factory.setProtocolFee(0, {"from": gov})
 
     # Simulate random deposit and random price move
     vault.deposit(amount0Desired, amount1Desired, 0, 0, user, {"from": user})
@@ -147,7 +147,7 @@ def test_rebalance_invariants(
     router.swap(pool, buy, qty, {"from": user})
 
     # Ignore TWAP deviation
-    strategy.setMaxTwapDeviation(1 << 22, {"from": gov})
+    vault.setMaxTwapDeviation(1 << 22, {"from": gov})
 
     # Poke Uniswap amounts owed to include fees
     shares = vault.balanceOf(user)
@@ -167,8 +167,8 @@ def test_rebalance_invariants(
     newTotal0, newTotal1 = vault.getTotalAmounts()
     assert approx(total0, abs=1000) == newTotal0
     assert approx(total1, abs=1000) == newTotal1
-    assert total0 - 2 <= newTotal0 <= total0
-    assert total1 - 2 <= newTotal1 <= total1
+    assert total0 - 3 <= newTotal0 <= total0
+    assert total1 - 3 <= newTotal1 <= total1
 
 
 @given(
@@ -188,10 +188,10 @@ def test_cannot_make_instant_profit_from_deposit_then_withdraw(
     buy,
     qty,
 ):
-    pool, vault, strategy = createPoolVaultStrategy()
+    pool, factory, vault = createPoolVaultStrategy()
 
     # Set fee to 0 since this when an arb is most likely to work
-    vault.setProtocolFee(0, {"from": gov})
+    factory.setProtocolFee(0, {"from": gov})
 
     # Simulate deposit and random price move
     vault.deposit(1e16, 1e18, 0, 0, user, {"from": user})
@@ -239,10 +239,10 @@ def test_cannot_make_instant_profit_from_manipulated_deposit(
     qty2,
     manipulateBack,
 ):
-    pool, vault, strategy = createPoolVaultStrategy()
+    pool, factory, vault = createPoolVaultStrategy()
 
     # Set fee to 0 since this when an arb is most likely to work
-    vault.setProtocolFee(0, {"from": gov})
+    factory.setProtocolFee(0, {"from": gov})
 
     # Simulate deposit and random price move
     vault.deposit(1e16, 1e18, 0, 0, user, {"from": user})
@@ -310,10 +310,10 @@ def test_cannot_make_instant_profit_from_manipulated_withdraw(
     qty2,
     manipulateBack,
 ):
-    pool, vault, strategy = createPoolVaultStrategy()
+    pool, factory, vault = createPoolVaultStrategy()
 
     # Set fee to 0 since this when an arb is most likely to work
-    vault.setProtocolFee(0, {"from": gov})
+    factory.setProtocolFee(0, {"from": gov})
 
     # Simulate deposit and random price move
     vault.deposit(1e16, 1e18, 0, 0, user, {"from": user})
@@ -377,10 +377,10 @@ def test_cannot_make_instant_profit_around_rebalance(
     buy2,
     qty2,
 ):
-    pool, vault, strategy = createPoolVaultStrategy()
+    pool, factory, vault = createPoolVaultStrategy()
 
     # Set fee to 0 since this when an arb is most likely to work
-    vault.setProtocolFee(0, {"from": gov})
+    factory.setProtocolFee(0, {"from": gov})
 
     # Simulate deposit and random price move
     vault.deposit(1e16, 1e18, 0, 0, user, {"from": user})
@@ -409,7 +409,7 @@ def test_cannot_make_instant_profit_around_rebalance(
     assert not (amount0Deposit < amount0Withdraw and amount1Deposit <= amount1Withdraw)
     assert not (amount0Deposit <= amount0Withdraw and amount1Deposit < amount1Withdraw)
 
-    assert total0 <= total0After + 2
-    assert total1 <= total1After + 2
+    assert total0 <= total0After + 3
+    assert total1 <= total1After + 3
     assert approx(total0) == total0After
     assert approx(total1) == total1After
