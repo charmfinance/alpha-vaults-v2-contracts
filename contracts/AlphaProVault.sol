@@ -70,7 +70,7 @@ contract AlphaProVault is
 
     int24 public baseRadius;
     int24 public limitRadius;
-    uint256 public fullWeight;
+    uint256 public fullRangeWeight;
     uint256 public period;
     int24 public minTickMove;
     int24 public maxTwapDeviation;
@@ -88,9 +88,17 @@ contract AlphaProVault is
     int24 public lastTick;
 
     /**
-     * @dev After deploying, strategy needs to be set via `setStrategy()`
-     * @param _pool Underlying Uniswap V3 pool
+     * @param _pool Underlying Uniswap V3 pool address
+     * @param _manager Address of manager who can set parameters
      * @param _maxTotalSupply Cap on total supply
+     * @param _baseRadius Half of the base order width in ticks
+     * @param _limitRadius Half of the limit order width in ticks
+     * @param _fullRangeWeight Proportion of liquidity in full range multiplied by 1e6
+     * @param _period Can only rebalance if this length of time has passed
+     * @param _minTickMove Can only rebalance if price has moved at least this much
+     * @param _maxTwapDeviation Max deviation from TWAP during rebalance
+     * @param _twapDuration TWAP duration in seconds for deviation check
+     * @param _factory Address of AlphaProFactory contract
      */
     function initialize(
         address _pool,
@@ -98,7 +106,7 @@ contract AlphaProVault is
         uint256 _maxTotalSupply,
         int24 _baseRadius,
         int24 _limitRadius,
-        uint256 _fullWeight,
+        uint256 _fullRangeWeight,
         uint256 _period,
         int24 _minTickMove,
         int24 _maxTwapDeviation,
@@ -117,7 +125,7 @@ contract AlphaProVault is
         maxTotalSupply = _maxTotalSupply;
         baseRadius = _baseRadius;
         limitRadius = _limitRadius;
-        fullWeight = _fullWeight;
+        fullRangeWeight = _fullRangeWeight;
         period = _period;
         minTickMove = _minTickMove;
         maxTwapDeviation = _maxTwapDeviation;
@@ -315,20 +323,9 @@ contract AlphaProVault is
     function rebalance() external override nonReentrant {
         require(shouldRebalance(), "cannot rebalance");
 
-        (, int24 tick, , , , , ) = pool.slot0();
-        int24 tickFloor = _floor(tick);
-        int24 tickCeil = tickFloor + tickSpacing;
-
+        // Withdraw all current liquidity from Uniswap pool
         int24 _fullLower = fullLower;
         int24 _fullUpper = fullUpper;
-        int24 _baseLower = tickFloor - baseRadius;
-        int24 _baseUpper = tickCeil + baseRadius;
-        int24 _bidLower = tickFloor - limitRadius;
-        int24 _bidUpper = tickFloor;
-        int24 _askLower = tickCeil;
-        int24 _askUpper = tickCeil + limitRadius;
-
-        // Withdraw all current liquidity from Uniswap pool
         {
             (uint128 fullLiquidity, , , , ) = _position(_fullLower, _fullUpper);
             (uint128 baseLiquidity, , , , ) = _position(baseLower, baseUpper);
@@ -338,6 +335,18 @@ contract AlphaProVault is
             _burnAndCollect(limitLower, limitUpper, limitLiquidity);
         }
 
+        // Calculate new ranges
+        (, int24 tick, , , , , ) = pool.slot0();
+        int24 tickFloor = _floor(tick);
+        int24 tickCeil = tickFloor + tickSpacing;
+
+        int24 _baseLower = tickFloor - baseRadius;
+        int24 _baseUpper = tickCeil + baseRadius;
+        int24 _bidLower = tickFloor - limitRadius;
+        int24 _bidUpper = tickFloor;
+        int24 _askLower = tickCeil;
+        int24 _askUpper = tickCeil + limitRadius;
+
         // Emit snapshot to record balances and supply
         uint256 balance0 = getBalance0();
         uint256 balance1 = getBalance1();
@@ -345,8 +354,8 @@ contract AlphaProVault is
 
         // Place full range order on Uniswap
         {
-            uint128 maxLiquidity = _liquidityForAmounts(_fullLower, _fullUpper, balance0, balance1);
-            uint128 fullLiquidity = _toUint128(uint256(maxLiquidity).mul(fullWeight).div(1e6));
+            uint128 maxFullLiquidity = _liquidityForAmounts(_fullLower, _fullUpper, balance0, balance1);
+            uint128 fullLiquidity = _toUint128(uint256(maxFullLiquidity).mul(fullRangeWeight).div(1e6));
             _mintLiquidity(_fullLower, _fullUpper, fullLiquidity);
         }
 
@@ -629,7 +638,7 @@ contract AlphaProVault is
         uint256 amount1,
         address to
     ) external {
-        require(msg.sender == factory.feeCollector(), "feeCollector");
+        require(msg.sender == factory.governance(), "governance");
         accruedProtocolFees0 = accruedProtocolFees0.sub(amount0);
         accruedProtocolFees1 = accruedProtocolFees1.sub(amount1);
         if (amount0 > 0) token0.safeTransfer(to, amount0);
@@ -658,9 +667,9 @@ contract AlphaProVault is
         limitRadius = _limitRadius;
     }
 
-    function setFullWeight(uint256 _fullWeight) external onlyManager {
-        require(_fullWeight <= 1e6, "fullWeight must be < 1e6");
-        fullWeight = _fullWeight;
+    function setFullRangeWeight(uint256 _fullRangeWeight) external onlyManager {
+        require(_fullRangeWeight <= 1e6, "fullRangeWeight must be < 1e6");
+        fullRangeWeight = _fullRangeWeight;
     }
 
     function setPeriod(uint256 _period) external onlyManager {
@@ -705,8 +714,8 @@ contract AlphaProVault is
     }
 
     /**
-     * @notice Governance address is not updated until the new manager
-     * address has called `acceptGovernance()` to accept this responsibility.
+     * @notice Manager address is not updated until the new manager
+     * address has called `acceptManager()` to accept this responsibility.
      */
     function setManager(address _manager) external onlyManager {
         pendingManager = _manager;
