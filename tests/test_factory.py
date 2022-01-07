@@ -29,3 +29,6 @@ def test_create_vault(AlphaProVault, AlphaProVaultFactory, pool, gov):
     assert vault.decimals() == 18
 
     assert vault.getTotalAmounts() == (0, 0)
+
+    assert vault.fullLower() == -887220
+    assert vault.fullUpper() == 887220
