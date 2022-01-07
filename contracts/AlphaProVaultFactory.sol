@@ -5,7 +5,6 @@ pragma solidity ^0.7.6;
 import "./CloneFactory.sol";
 import "./AlphaProVault.sol";
 
-
 /**
  * @title   Alpha Pro Vault Factory
  * @notice  A factory contract for creating new vaults
@@ -23,7 +22,11 @@ contract AlphaProVaultFactory is CloneFactory {
      * @param _governance Charm Finance governance address
      * @param _protocolFee Fee multiplied by 1e6
      */
-    constructor(address _template, address _governance, uint256 _protocolFee) {
+    constructor(
+        address _template,
+        address _governance,
+        uint256 _protocolFee
+    ) {
         template = _template;
         governance = _governance;
         protocolFee = _protocolFee;

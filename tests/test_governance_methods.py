@@ -2,9 +2,7 @@ from brownie import reverts
 from pytest import approx
 
 
-def test_vault_governance_methods(
-    MockToken, vault, tokens, gov, user, recipient
-):
+def test_vault_governance_methods(MockToken, vault, tokens, gov, user, recipient):
 
     # Check sweep
     with reverts("token"):
@@ -58,9 +56,7 @@ def test_vault_governance_methods(
     assert vault.manager() == recipient
 
 
-def test_collect_protocol_fees(
-    vault, pool, router, tokens, gov, user, recipient
-):
+def test_collect_protocol_fees(vault, pool, router, tokens, gov, user, recipient):
     vault.setMaxTwapDeviation(1 << 20, {"from": gov})
     vault.deposit(1e18, 1e20, 0, 0, gov, {"from": gov})
     vault.rebalance({"from": user})
@@ -136,9 +132,7 @@ def test_strategy_governance_methods(vault, gov, user, recipient):
     vault.setManager(recipient, {"from": user})
 
 
-def test_factory_governance_methods(
-    factory, vault, gov, user, recipient
-):
+def test_factory_governance_methods(factory, vault, gov, user, recipient):
     # Check setting protocol fee
     with reverts("governance"):
         factory.setProtocolFee(0, {"from": user})
@@ -168,4 +162,3 @@ def test_factory_governance_methods(
     assert factory.governance() != recipient
     factory.acceptGovernance({"from": recipient})
     assert factory.governance() == recipient
-

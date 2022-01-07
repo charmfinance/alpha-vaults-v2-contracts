@@ -7,19 +7,8 @@ def test_create_vault(AlphaProVault, AlphaProVaultFactory, pool, gov):
     assert factory.template() == template
     assert factory.governance() == gov
     assert factory.protocolFee() == 10000
-    
-    tx = factory.createVault(
-        pool,
-        gov,
-        100e18,
-        2000,
-        1000,
-        300000,
-        86400,
-        100,
-        200,
-        60
-    )
+
+    tx = factory.createVault(pool, gov, 100e18, 2000, 1000, 300000, 86400, 100, 200, 60)
     vault = AlphaProVault.at(tx.return_value)
     assert vault.pool() == pool
     assert vault.manager() == gov
@@ -40,4 +29,3 @@ def test_create_vault(AlphaProVault, AlphaProVaultFactory, pool, gov):
     assert vault.decimals() == 18
 
     assert vault.getTotalAmounts() == (0, 0)
-

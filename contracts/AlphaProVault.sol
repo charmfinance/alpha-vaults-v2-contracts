@@ -17,7 +17,6 @@ import "@uniswap/v3-periphery/contracts/libraries/PositionKey.sol";
 import "./AlphaProVaultFactory.sol";
 import "../interfaces/IVault.sol";
 
-
 /**
  * @title   Alpha Pro Vault
  * @notice  A vault that provides liquidity on Uniswap V3.
@@ -55,7 +54,12 @@ contract AlphaProVault is
         uint256 feesToProtocol1
     );
 
-    event Snapshot(int24 tick, uint256 totalAmount0, uint256 totalAmount1, uint256 totalSupply);
+    event Snapshot(
+        int24 tick,
+        uint256 totalAmount0,
+        uint256 totalAmount1,
+        uint256 totalSupply
+    );
 
     IUniswapV3Pool public pool;
     IERC20Upgradeable public token0;
@@ -134,8 +138,8 @@ contract AlphaProVault is
         factory = AlphaProVaultFactory(_factory);
         protocolFee = factory.protocolFee();
 
-        fullLower = TickMath.MIN_TICK / tickSpacing * tickSpacing;
-        fullUpper = TickMath.MAX_TICK / tickSpacing * tickSpacing;
+        fullLower = (TickMath.MIN_TICK / tickSpacing) * tickSpacing;
+        fullUpper = (TickMath.MAX_TICK / tickSpacing) * tickSpacing;
     }
 
     /**
@@ -169,7 +173,10 @@ contract AlphaProVault is
             uint256 amount1
         )
     {
-        require(amount0Desired > 0 || amount1Desired > 0, "amount0Desired or amount1Desired");
+        require(
+            amount0Desired > 0 || amount1Desired > 0,
+            "amount0Desired or amount1Desired"
+        );
         require(to != address(0) && to != address(this), "to");
 
         // Poke positions so vault's current holdings are up-to-date
@@ -178,14 +185,19 @@ contract AlphaProVault is
         _poke(limitLower, limitUpper);
 
         // Calculate amounts proportional to vault's holdings
-        (shares, amount0, amount1) = _calcSharesAndAmounts(amount0Desired, amount1Desired);
+        (shares, amount0, amount1) = _calcSharesAndAmounts(
+            amount0Desired,
+            amount1Desired
+        );
         require(shares > 0, "shares");
         require(amount0 >= amount0Min, "amount0Min");
         require(amount1 >= amount1Min, "amount1Min");
 
         // Pull in tokens from sender
-        if (amount0 > 0) token0.safeTransferFrom(msg.sender, address(this), amount0);
-        if (amount1 > 0) token1.safeTransferFrom(msg.sender, address(this), amount1);
+        if (amount0 > 0)
+            token0.safeTransferFrom(msg.sender, address(this), amount0);
+        if (amount1 > 0)
+            token1.safeTransferFrom(msg.sender, address(this), amount1);
 
         // Mint shares to recipient
         _mint(to, shares);
@@ -206,7 +218,10 @@ contract AlphaProVault is
     /// @dev Calculates the largest possible `amount0` and `amount1` such that
     /// they're in the same proportion as total amounts, but not greater than
     /// `amount0Desired` and `amount1Desired` respectively.
-    function _calcSharesAndAmounts(uint256 amount0Desired, uint256 amount1Desired)
+    function _calcSharesAndAmounts(
+        uint256 amount0Desired,
+        uint256 amount1Desired
+    )
         internal
         view
         returns (
@@ -259,7 +274,12 @@ contract AlphaProVault is
         uint256 amount0Min,
         uint256 amount1Min,
         address to
-    ) external override nonReentrant returns (uint256 amount0, uint256 amount1) {
+    )
+        external
+        override
+        nonReentrant
+        returns (uint256 amount0, uint256 amount1)
+    {
         require(shares > 0, "shares");
         require(to != address(0) && to != address(this), "to");
         uint256 totalSupply = totalSupply();
@@ -300,7 +320,8 @@ contract AlphaProVault is
         uint256 totalSupply
     ) internal returns (uint256 amount0, uint256 amount1) {
         (uint128 totalLiquidity, , , , ) = _position(tickLower, tickUpper);
-        uint256 liquidity = uint256(totalLiquidity).mul(shares).div(totalSupply);
+        uint256 liquidity =
+            uint256(totalLiquidity).mul(shares).div(totalSupply);
 
         if (liquidity > 0) {
             (uint256 burned0, uint256 burned1, uint256 fees0, uint256 fees1) =
@@ -329,7 +350,8 @@ contract AlphaProVault is
         {
             (uint128 fullLiquidity, , , , ) = _position(_fullLower, _fullUpper);
             (uint128 baseLiquidity, , , , ) = _position(baseLower, baseUpper);
-            (uint128 limitLiquidity, , , , ) = _position(limitLower, limitUpper);
+            (uint128 limitLiquidity, , , , ) =
+                _position(limitLower, limitUpper);
             _burnAndCollect(_fullLower, _fullUpper, fullLiquidity);
             _burnAndCollect(baseLower, baseUpper, baseLiquidity);
             _burnAndCollect(limitLower, limitUpper, limitLiquidity);
@@ -354,8 +376,17 @@ contract AlphaProVault is
 
         // Place full range order on Uniswap
         {
-            uint128 maxFullLiquidity = _liquidityForAmounts(_fullLower, _fullUpper, balance0, balance1);
-            uint128 fullLiquidity = _toUint128(uint256(maxFullLiquidity).mul(fullRangeWeight).div(1e6));
+            uint128 maxFullLiquidity =
+                _liquidityForAmounts(
+                    _fullLower,
+                    _fullUpper,
+                    balance0,
+                    balance1
+                );
+            uint128 fullLiquidity =
+                _toUint128(
+                    uint256(maxFullLiquidity).mul(fullRangeWeight).div(1e6)
+                );
             _mintLiquidity(_fullLower, _fullUpper, fullLiquidity);
         }
 
@@ -363,7 +394,13 @@ contract AlphaProVault is
         balance0 = getBalance0();
         balance1 = getBalance1();
         {
-            uint128 baseLiquidity = _liquidityForAmounts(_baseLower, _baseUpper, balance0, balance1);
+            uint128 baseLiquidity =
+                _liquidityForAmounts(
+                    _baseLower,
+                    _baseUpper,
+                    balance0,
+                    balance1
+                );
             _mintLiquidity(_baseLower, _baseUpper, baseLiquidity);
             (baseLower, baseUpper) = (_baseLower, _baseUpper);
         }
@@ -371,8 +408,10 @@ contract AlphaProVault is
         // Place bid or ask order on Uniswap depending on which token is left
         balance0 = getBalance0();
         balance1 = getBalance1();
-        uint128 bidLiquidity = _liquidityForAmounts(_bidLower, _bidUpper, balance0, balance1);
-        uint128 askLiquidity = _liquidityForAmounts(_askLower, _askUpper, balance0, balance1);
+        uint128 bidLiquidity =
+            _liquidityForAmounts(_bidLower, _bidUpper, balance0, balance1);
+        uint128 askLiquidity =
+            _liquidityForAmounts(_askLower, _askUpper, balance0, balance1);
         if (bidLiquidity > askLiquidity) {
             _mintLiquidity(_bidLower, _bidUpper, bidLiquidity);
             (limitLower, limitUpper) = (_bidLower, _bidUpper);
@@ -443,7 +482,10 @@ contract AlphaProVault is
     function _checkRadius(int24 radius, int24 _tickSpacing) internal pure {
         require(radius > 0, "radius must be > 0");
         require(radius <= TickMath.MAX_TICK, "radius too high");
-        require(radius % _tickSpacing == 0, "radius must be multiple of tickSpacing");
+        require(
+            radius % _tickSpacing == 0,
+            "radius must be multiple of tickSpacing"
+        );
     }
 
     /// @dev Withdraws liquidity from a range and collects all fees in the
@@ -490,7 +532,12 @@ contract AlphaProVault is
             accruedProtocolFees0 = accruedProtocolFees0.add(feesToProtocol0);
             accruedProtocolFees1 = accruedProtocolFees1.add(feesToProtocol1);
         }
-        emit CollectFees(feesToVault0, feesToVault1, feesToProtocol0, feesToProtocol1);
+        emit CollectFees(
+            feesToVault0,
+            feesToVault1,
+            feesToProtocol0,
+            feesToProtocol1
+        );
     }
 
     /// @dev Deposits liquidity in a range on the Uniswap pool.
@@ -509,13 +556,24 @@ contract AlphaProVault is
      * other words, how much of each token the vault would hold if it withdrew
      * all its liquidity from Uniswap.
      */
-    function getTotalAmounts() public view override returns (uint256 total0, uint256 total1) {
-        (uint256 fullAmount0, uint256 fullAmount1) = getPositionAmounts(fullLower, fullUpper);
-        (uint256 baseAmount0, uint256 baseAmount1) = getPositionAmounts(baseLower, baseUpper);
+    function getTotalAmounts()
+        public
+        view
+        override
+        returns (uint256 total0, uint256 total1)
+    {
+        (uint256 fullAmount0, uint256 fullAmount1) =
+            getPositionAmounts(fullLower, fullUpper);
+        (uint256 baseAmount0, uint256 baseAmount1) =
+            getPositionAmounts(baseLower, baseUpper);
         (uint256 limitAmount0, uint256 limitAmount1) =
             getPositionAmounts(limitLower, limitUpper);
-        total0 = getBalance0().add(fullAmount0).add(baseAmount0).add(limitAmount0);
-        total1 = getBalance1().add(fullAmount1).add(baseAmount1).add(limitAmount1);
+        total0 = getBalance0().add(fullAmount0).add(baseAmount0).add(
+            limitAmount0
+        );
+        total1 = getBalance1().add(fullAmount1).add(baseAmount1).add(
+            limitAmount1
+        );
     }
 
     /**
@@ -530,7 +588,11 @@ contract AlphaProVault is
     {
         (uint128 liquidity, , , uint128 tokensOwed0, uint128 tokensOwed1) =
             _position(tickLower, tickUpper);
-        (amount0, amount1) = _amountsForLiquidity(tickLower, tickUpper, liquidity);
+        (amount0, amount1) = _amountsForLiquidity(
+            tickLower,
+            tickUpper,
+            liquidity
+        );
 
         // Subtract protocol fees
         uint256 oneMinusFee = uint256(1e6).sub(protocolFee);
@@ -564,7 +626,8 @@ contract AlphaProVault is
             uint128
         )
     {
-        bytes32 positionKey = PositionKey.compute(address(this), tickLower, tickUpper);
+        bytes32 positionKey =
+            PositionKey.compute(address(this), tickLower, tickUpper);
         return pool.positions(positionKey);
     }
 
@@ -626,8 +689,10 @@ contract AlphaProVault is
         bytes calldata data
     ) external override {
         require(msg.sender == address(pool));
-        if (amount0Delta > 0) token0.safeTransfer(msg.sender, uint256(amount0Delta));
-        if (amount1Delta > 0) token1.safeTransfer(msg.sender, uint256(amount1Delta));
+        if (amount0Delta > 0)
+            token0.safeTransfer(msg.sender, uint256(amount0Delta));
+        if (amount1Delta > 0)
+            token1.safeTransfer(msg.sender, uint256(amount1Delta));
     }
 
     /**
@@ -710,7 +775,13 @@ contract AlphaProVault is
         uint128 liquidity
     ) external onlyManager {
         pool.burn(tickLower, tickUpper, liquidity);
-        pool.collect(address(this), tickLower, tickUpper, type(uint128).max, type(uint128).max);
+        pool.collect(
+            address(this),
+            tickLower,
+            tickUpper,
+            type(uint128).max,
+            type(uint128).max
+        );
     }
 
     /**

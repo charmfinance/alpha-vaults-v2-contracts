@@ -52,9 +52,7 @@ def test_strategy_rebalance(
     assert vault.lastTick() == tick
 
 
-def test_rebalance_period_check(
-    vault, pool, tokens, router, gov, user
-):
+def test_rebalance_period_check(vault, pool, tokens, router, gov, user):
     # Set period
     vault.setPeriod(86400, {"from": gov})
 
@@ -75,9 +73,7 @@ def test_rebalance_period_check(
 
 
 @pytest.mark.parametrize("buy", [False, True])
-def test_rebalance_min_tick_move_check(
-    vault, pool, tokens, router, gov, user, buy
-):
+def test_rebalance_min_tick_move_check(vault, pool, tokens, router, gov, user, buy):
     # Rebalance
     vault.rebalance({"from": user})
 
@@ -95,9 +91,7 @@ def test_rebalance_min_tick_move_check(
 
 
 @pytest.mark.parametrize("buy", [False, True])
-def test_rebalance_twap_check(
-    vault, pool, tokens, router, gov, user, buy
-):
+def test_rebalance_twap_check(vault, pool, tokens, router, gov, user, buy):
     # Set max deviation
     vault.setMaxTwapDeviation(500, {"from": gov})
 
@@ -120,9 +114,7 @@ def test_rebalance_twap_check(
     vault.rebalance({"from": user})
 
 
-def test_can_rebalance_when_vault_empty(
-    vault, pool, tokens, gov, user
-):
+def test_can_rebalance_when_vault_empty(vault, pool, tokens, gov, user):
     assert tokens[0].balanceOf(vault) == 0
     assert tokens[1].balanceOf(vault) == 0
     tx = vault.rebalance({"from": user})
