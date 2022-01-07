@@ -141,13 +141,18 @@ def test_factory_governance_methods(factory, vault, gov, user, recipient):
     factory.setProtocolFee(0, {"from": gov})
     assert factory.protocolFee() == 0
 
-    # Check setting fee
+    # Check fee change is only reflected in vault after a rebalance
     with reverts("governance"):
         factory.setProtocolFee(0, {"from": user})
     assert factory.protocolFee() == 0
     assert vault.protocolFee() != 0
     vault.rebalance({"from": user})
     assert vault.protocolFee() == 0
+
+    # Check collecting protocol fees from vault
+    with reverts("governance"):
+        vault.collectProtocol(0, 0, user, {"from": user})
+    vault.collectProtocol(0, 0, gov, {"from": gov})
 
     # Check setting gov
     with reverts("governance"):
@@ -162,3 +167,8 @@ def test_factory_governance_methods(factory, vault, gov, user, recipient):
     assert factory.governance() != recipient
     factory.acceptGovernance({"from": recipient})
     assert factory.governance() == recipient
+
+    # Check only new gov can collect protocol fees
+    with reverts("governance"):
+        vault.collectProtocol(0, 0, gov, {"from": gov})
+    vault.collectProtocol(0, 0, recipient, {"from": recipient})
