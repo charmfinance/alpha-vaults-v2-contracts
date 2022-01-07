@@ -523,7 +523,7 @@ contract AlphaProVault is
         uint256 feesToProtocol1;
 
         // Update accrued protocol fees
-        uint256 _protocolFee = factory.protocolFee();
+        uint256 _protocolFee = protocolFee;
         if (_protocolFee > 0) {
             feesToProtocol0 = feesToVault0.mul(_protocolFee).div(1e6);
             feesToProtocol1 = feesToVault1.mul(_protocolFee).div(1e6);
