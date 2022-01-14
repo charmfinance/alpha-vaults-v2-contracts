@@ -67,8 +67,8 @@ contract AlphaProVault is
     uint256 public maxTotalSupply;
     uint256 public protocolFee;
 
-    int24 public baseRadius;
-    int24 public limitRadius;
+    int24 public baseThreshold;
+    int24 public limitThreshold;
     uint256 public fullRangeWeight;
     uint256 public period;
     int24 public minTickMove;
@@ -90,8 +90,8 @@ contract AlphaProVault is
      * @param _pool Underlying Uniswap V3 pool address
      * @param _manager Address of manager who can set parameters
      * @param _maxTotalSupply Cap on total supply
-     * @param _baseRadius Half of the base order width in ticks
-     * @param _limitRadius Half of the limit order width in ticks
+     * @param _baseThreshold Half of the base order width in ticks
+     * @param _limitThreshold Half of the limit order width in ticks
      * @param _fullRangeWeight Proportion of liquidity in full range multiplied by 1e6
      * @param _period Can only rebalance if this length of time has passed
      * @param _minTickMove Can only rebalance if price has moved at least this much
@@ -103,8 +103,8 @@ contract AlphaProVault is
         address _pool,
         address _manager,
         uint256 _maxTotalSupply,
-        int24 _baseRadius,
-        int24 _limitRadius,
+        int24 _baseThreshold,
+        int24 _limitThreshold,
         uint256 _fullRangeWeight,
         uint256 _period,
         int24 _minTickMove,
@@ -122,8 +122,8 @@ contract AlphaProVault is
 
         manager = _manager;
         maxTotalSupply = _maxTotalSupply;
-        baseRadius = _baseRadius;
-        limitRadius = _limitRadius;
+        baseThreshold = _baseThreshold;
+        limitThreshold = _limitThreshold;
         fullRangeWeight = _fullRangeWeight;
         period = _period;
         minTickMove = _minTickMove;
@@ -339,12 +339,12 @@ contract AlphaProVault is
         int24 tickFloor = _floor(tick);
         int24 tickCeil = tickFloor + tickSpacing;
 
-        int24 _baseLower = tickFloor - baseRadius;
-        int24 _baseUpper = tickCeil + baseRadius;
-        int24 _bidLower = tickFloor - limitRadius;
+        int24 _baseLower = tickFloor - baseThreshold;
+        int24 _baseUpper = tickCeil + baseThreshold;
+        int24 _bidLower = tickFloor - limitThreshold;
         int24 _bidUpper = tickFloor;
         int24 _askLower = tickCeil;
-        int24 _askUpper = tickCeil + limitRadius;
+        int24 _askUpper = tickCeil + limitThreshold;
 
         // Emit snapshot to record balances and supply
         uint256 balance0 = getBalance0();
@@ -412,10 +412,10 @@ contract AlphaProVault is
         }
 
         // check price not too close to boundary
-        int24 maxRadius = baseRadius > limitRadius ? baseRadius : limitRadius;
+        int24 maxThreshold = baseThreshold > limitThreshold ? baseThreshold : limitThreshold;
         if (
-            tick < TickMath.MIN_TICK + maxRadius + tickSpacing ||
-            tick > TickMath.MAX_TICK - maxRadius - tickSpacing
+            tick < TickMath.MIN_TICK + maxThreshold + tickSpacing ||
+            tick > TickMath.MAX_TICK - maxThreshold - tickSpacing
         ) {
             return false;
         }
@@ -442,10 +442,10 @@ contract AlphaProVault is
         return compressed * tickSpacing;
     }
 
-    function _checkRadius(int24 radius, int24 _tickSpacing) internal pure {
-        require(radius > 0, "radius must be > 0");
-        require(radius <= TickMath.MAX_TICK, "radius too high");
-        require(radius % _tickSpacing == 0, "radius must be multiple of tickSpacing");
+    function _checkThreshold(int24 threshold, int24 _tickSpacing) internal pure {
+        require(threshold > 0, "threshold must be > 0");
+        require(threshold <= TickMath.MAX_TICK, "threshold too high");
+        require(threshold % _tickSpacing == 0, "threshold must be multiple of tickSpacing");
     }
 
     /// @dev Withdraws liquidity from a range and collects all fees in the
@@ -659,14 +659,14 @@ contract AlphaProVault is
         token.safeTransfer(to, amount);
     }
 
-    function setBaseRadius(int24 _baseRadius) external onlyManager {
-        _checkRadius(_baseRadius, tickSpacing);
-        baseRadius = _baseRadius;
+    function setBaseThreshold(int24 _baseThreshold) external onlyManager {
+        _checkThreshold(_baseThreshold, tickSpacing);
+        baseThreshold = _baseThreshold;
     }
 
-    function setLimitRadius(int24 _limitRadius) external onlyManager {
-        _checkRadius(_limitRadius, tickSpacing);
-        limitRadius = _limitRadius;
+    function setLimitThreshold(int24 _limitThreshold) external onlyManager {
+        _checkThreshold(_limitThreshold, tickSpacing);
+        limitThreshold = _limitThreshold;
     }
 
     function setFullRangeWeight(uint256 _fullRangeWeight) external onlyManager {

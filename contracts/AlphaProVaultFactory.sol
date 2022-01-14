@@ -38,8 +38,8 @@ contract AlphaProVaultFactory is CloneFactory {
      * @param pool Underlying Uniswap V3 pool address
      * @param manager Address of manager who can set parameters
      * @param maxTotalSupply Cap on total supply
-     * @param baseRadius Half of the base order width in ticks
-     * @param limitRadius Half of the limit order width in ticks
+     * @param baseThreshold Half of the base order width in ticks
+     * @param limitThreshold Half of the limit order width in ticks
      * @param fullRangeWeight Proportion of liquidity in full range multiplied by 1e6
      * @param period Can only rebalance if this length of time has passed
      * @param minTickMove Can only rebalance if price has moved at least this much
@@ -50,8 +50,8 @@ contract AlphaProVaultFactory is CloneFactory {
         address pool,
         address manager,
         uint256 maxTotalSupply,
-        int24 baseRadius,
-        int24 limitRadius,
+        int24 baseThreshold,
+        int24 limitThreshold,
         uint256 fullRangeWeight,
         uint256 period,
         int24 minTickMove,
@@ -63,8 +63,8 @@ contract AlphaProVaultFactory is CloneFactory {
             pool,
             manager,
             maxTotalSupply,
-            baseRadius,
-            limitRadius,
+            baseThreshold,
+            limitThreshold,
             fullRangeWeight,
             period,
             minTickMove,

@@ -86,29 +86,29 @@ def test_collect_protocol_fees(vault, pool, router, tokens, gov, user, recipient
 
 def test_strategy_governance_methods(vault, gov, user, recipient):
 
-    # Check setting base radius
+    # Check setting base threshold
     with reverts("manager"):
-        vault.setBaseRadius(0, {"from": user})
-    with reverts("radius must be multiple of tickSpacing"):
-        vault.setBaseRadius(2401, {"from": gov})
-    with reverts("radius must be > 0"):
-        vault.setBaseRadius(0, {"from": gov})
-    with reverts("radius too high"):
-        vault.setBaseRadius(887280, {"from": gov})
-    vault.setBaseRadius(4800, {"from": gov})
-    assert vault.baseRadius() == 4800
+        vault.setBaseThreshold(0, {"from": user})
+    with reverts("threshold must be multiple of tickSpacing"):
+        vault.setBaseThreshold(2401, {"from": gov})
+    with reverts("threshold must be > 0"):
+        vault.setBaseThreshold(0, {"from": gov})
+    with reverts("threshold too high"):
+        vault.setBaseThreshold(887280, {"from": gov})
+    vault.setBaseThreshold(4800, {"from": gov})
+    assert vault.baseThreshold() == 4800
 
-    # Check setting limit radius
+    # Check setting limit threshold
     with reverts("manager"):
-        vault.setLimitRadius(0, {"from": user})
-    with reverts("radius must be multiple of tickSpacing"):
-        vault.setLimitRadius(1201, {"from": gov})
-    with reverts("radius must be > 0"):
-        vault.setLimitRadius(0, {"from": gov})
-    with reverts("radius too high"):
-        vault.setLimitRadius(887280, {"from": gov})
-    vault.setLimitRadius(600, {"from": gov})
-    assert vault.limitRadius() == 600
+        vault.setLimitThreshold(0, {"from": user})
+    with reverts("threshold must be multiple of tickSpacing"):
+        vault.setLimitThreshold(1201, {"from": gov})
+    with reverts("threshold must be > 0"):
+        vault.setLimitThreshold(0, {"from": gov})
+    with reverts("threshold too high"):
+        vault.setLimitThreshold(887280, {"from": gov})
+    vault.setLimitThreshold(600, {"from": gov})
+    assert vault.limitThreshold() == 600
 
     # Check setting max twap deviation
     with reverts("manager"):
