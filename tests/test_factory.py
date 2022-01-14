@@ -32,3 +32,5 @@ def test_create_vault(AlphaProVault, AlphaProVaultFactory, pool, gov):
 
     assert vault.fullLower() == -887220
     assert vault.fullUpper() == 887220
+
+    assert factory.isVault(vault)

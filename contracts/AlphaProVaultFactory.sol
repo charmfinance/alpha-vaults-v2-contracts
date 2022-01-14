@@ -12,6 +12,7 @@ import "./AlphaProVault.sol";
 contract AlphaProVaultFactory is CloneFactory {
     address public template;
     address[] public vaults;
+    mapping(address => bool) public isVault;
 
     address public governance;
     address public pendingGovernance;
@@ -71,6 +72,7 @@ contract AlphaProVaultFactory is CloneFactory {
             twapDuration,
             address(this)
         );
+        isVault[vaultAddress] = true;
     }
 
     function numVaults() external view returns (uint256) {
