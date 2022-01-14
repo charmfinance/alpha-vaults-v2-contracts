@@ -137,6 +137,7 @@ contract AlphaProVault is
 
         fullLower = (TickMath.MIN_TICK / _tickSpacing) * _tickSpacing;
         fullUpper = (TickMath.MAX_TICK / _tickSpacing) * _tickSpacing;
+        (, lastTick, , , , , ) = IUniswapV3Pool(_pool).slot0();
 
         _checkThreshold(_baseThreshold, _tickSpacing);
         _checkThreshold(_limitThreshold, _tickSpacing);
