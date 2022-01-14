@@ -110,9 +110,11 @@ contract AlphaProVault is
         int24 _minTickMove,
         int24 _maxTwapDeviation,
         uint32 _twapDuration,
-        address _factory
+        address _factory,
+        string memory name,
+        string memory symbol
     ) public initializer {
-        __ERC20_init("Alpha Vault", "AV");
+        __ERC20_init(name, symbol);
         __ReentrancyGuard_init();
 
         pool = IUniswapV3Pool(_pool);

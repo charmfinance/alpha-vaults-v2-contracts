@@ -56,7 +56,9 @@ contract AlphaProVaultFactory is CloneFactory {
         uint256 period,
         int24 minTickMove,
         int24 maxTwapDeviation,
-        uint32 twapDuration
+        uint32 twapDuration,
+        string memory name,
+        string memory symbol
     ) external returns (address vaultAddress) {
         vaultAddress = createClone(template);
         AlphaProVault(vaultAddress).initialize(
@@ -70,7 +72,9 @@ contract AlphaProVaultFactory is CloneFactory {
             minTickMove,
             maxTwapDeviation,
             twapDuration,
-            address(this)
+            address(this),
+            name,
+            symbol
         );
         vaults.push(vaultAddress);
         isVault[vaultAddress] = true;
