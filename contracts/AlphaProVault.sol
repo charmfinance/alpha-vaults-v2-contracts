@@ -91,7 +91,7 @@ contract AlphaProVault is
      * @param _manager Address of manager who can set parameters
      * @param _maxTotalSupply Cap on total supply
      * @param _baseThreshold Half of the base order width in ticks
-     * @param _limitThreshold Half of the limit order width in ticks
+     * @param _limitThreshold Limit order width in ticks
      * @param _fullRangeWeight Proportion of liquidity in full range multiplied by 1e6
      * @param _period Can only rebalance if this length of time has passed
      * @param _minTickMove Can only rebalance if price has moved at least this much
