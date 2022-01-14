@@ -7,6 +7,7 @@ def test_create_vault(AlphaProVault, AlphaProVaultFactory, pool, gov):
     assert factory.template() == template
     assert factory.governance() == gov
     assert factory.protocolFee() == 10000
+    assert factory.numVaults() == 0
 
     tx = factory.createVault(pool, gov, 100e18, 2000, 1000, 300000, 86400, 100, 200, 60)
     vault = AlphaProVault.at(tx.return_value)
@@ -33,4 +34,6 @@ def test_create_vault(AlphaProVault, AlphaProVaultFactory, pool, gov):
     assert vault.fullLower() == -887220
     assert vault.fullUpper() == 887220
 
+    assert factory.numVaults() == 1
+    assert factory.vaults(0) == vault
     assert factory.isVault(vault)

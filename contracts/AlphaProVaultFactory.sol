@@ -72,6 +72,7 @@ contract AlphaProVaultFactory is CloneFactory {
             twapDuration,
             address(this)
         );
+        vaults.push(vaultAddress);
         isVault[vaultAddress] = true;
     }
 
