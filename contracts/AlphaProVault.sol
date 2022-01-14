@@ -118,7 +118,9 @@ contract AlphaProVault is
         pool = IUniswapV3Pool(_pool);
         token0 = IERC20Upgradeable(IUniswapV3Pool(_pool).token0());
         token1 = IERC20Upgradeable(IUniswapV3Pool(_pool).token1());
-        tickSpacing = IUniswapV3Pool(_pool).tickSpacing();
+
+        int24 _tickSpacing = IUniswapV3Pool(_pool).tickSpacing();
+        tickSpacing = _tickSpacing;
 
         manager = _manager;
         maxTotalSupply = _maxTotalSupply;
@@ -133,8 +135,13 @@ contract AlphaProVault is
         factory = AlphaProVaultFactory(_factory);
         protocolFee = factory.protocolFee();
 
-        fullLower = (TickMath.MIN_TICK / tickSpacing) * tickSpacing;
-        fullUpper = (TickMath.MAX_TICK / tickSpacing) * tickSpacing;
+        fullLower = (TickMath.MIN_TICK / _tickSpacing) * _tickSpacing;
+        fullUpper = (TickMath.MAX_TICK / _tickSpacing) * _tickSpacing;
+
+        _checkThreshold(_baseThreshold, _tickSpacing);
+        _checkThreshold(_limitThreshold, _tickSpacing);
+        require(_maxTwapDeviation >= 0, "maxTwapDeviation must be >= 0");
+        require(_twapDuration > 0, "twapDuration must be > 0");
     }
 
     /**

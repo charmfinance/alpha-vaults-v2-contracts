@@ -9,7 +9,7 @@ def test_create_vault(AlphaProVault, AlphaProVaultFactory, pool, gov):
     assert factory.protocolFee() == 10000
     assert factory.numVaults() == 0
 
-    tx = factory.createVault(pool, gov, 100e18, 2000, 1000, 300000, 86400, 100, 200, 60)
+    tx = factory.createVault(pool, gov, 100e18, 2400, 1200, 300000, 86400, 100, 200, 60)
     vault = AlphaProVault.at(tx.return_value)
     assert vault.pool() == pool
     assert vault.manager() == gov
@@ -17,8 +17,8 @@ def test_create_vault(AlphaProVault, AlphaProVaultFactory, pool, gov):
     assert vault.token1() == pool.token1()
     assert vault.protocolFee() == 10000
     assert vault.maxTotalSupply() == 100e18
-    assert vault.baseThreshold() == 2000
-    assert vault.limitThreshold() == 1000
+    assert vault.baseThreshold() == 2400
+    assert vault.limitThreshold() == 1200
     assert vault.fullRangeWeight() == 300000
     assert vault.period() == 86400
     assert vault.minTickMove() == 100
@@ -37,3 +37,21 @@ def test_create_vault(AlphaProVault, AlphaProVaultFactory, pool, gov):
     assert factory.numVaults() == 1
     assert factory.vaults(0) == vault
     assert factory.isVault(vault)
+
+
+def test_constructor_checks(AlphaProVault, AlphaProVaultFactory, pool, gov):
+    template = gov.deploy(AlphaProVault)
+    factory = gov.deploy(AlphaProVaultFactory, template, gov, 10000)
+
+    with reverts("threshold must be > 0"):
+        factory.createVault(pool, gov, 100e18, 0, 1200, 300000, 86400, 100, 200, 60)
+
+    with reverts("threshold must be > 0"):
+        factory.createVault(pool, gov, 100e18, 2400, 0, 300000, 86400, 100, 200, 60)
+
+    with reverts("maxTwapDeviation must be >= 0"):
+        factory.createVault(pool, gov, 100e18, 2400, 1200, 300000, 86400, 100, -1, 60)
+
+    with reverts("twapDuration must be > 0"):
+        factory.createVault(pool, gov, 100e18, 2400, 1200, 300000, 86400, 100, 200, 0)
+
