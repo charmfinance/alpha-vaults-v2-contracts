@@ -169,7 +169,7 @@ def createPoolVaultStrategy(
         # maxTwapDeviation = 200000 (just a big number)
         # twapDuration = 600 (10 minutes)
         tx = factory.createVault(
-            pool, gov, 100e18, 2400, 1200, 500000, 0, 0, 200000, 600
+            pool, gov, 100e18, 2400, 1200, 500000, 0, 0, 200000, 600, "N", "S"
         )
         vault = AlphaProVault.at(tx.return_value)
         for u in users:
