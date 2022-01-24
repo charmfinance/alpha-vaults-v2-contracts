@@ -50,6 +50,12 @@ def test_constructor_checks(AlphaProVault, AlphaProVaultFactory, pool, gov):
     with reverts("threshold must be > 0"):
         factory.createVault(pool, gov, 100e18, 2400, 0, 300000, 86400, 100, 200, 60, "N", "S")
 
+    with reverts("fullRangeWeight must be <= 1e6"):
+        factory.createVault(pool, gov, 100e18, 2400, 1200, 1000001, 86400, 100, 200, 60, "N", "S")
+
+    with reverts("minTickMove must be >= 0"):
+        factory.createVault(pool, gov, 100e18, 2400, 1200, 300000, 86400, -100, 200, 60, "N", "S")
+
     with reverts("maxTwapDeviation must be >= 0"):
         factory.createVault(pool, gov, 100e18, 2400, 1200, 300000, 86400, 100, -1, 60, "N", "S")
 

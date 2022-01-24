@@ -143,6 +143,8 @@ contract AlphaProVault is
 
         _checkThreshold(_baseThreshold, _tickSpacing);
         _checkThreshold(_limitThreshold, _tickSpacing);
+        require(_fullRangeWeight <= 1e6, "fullRangeWeight must be <= 1e6");
+        require(_minTickMove >= 0, "minTickMove must be >= 0");
         require(_maxTwapDeviation >= 0, "maxTwapDeviation must be >= 0");
         require(_twapDuration > 0, "twapDuration must be > 0");
     }
@@ -680,7 +682,7 @@ contract AlphaProVault is
     }
 
     function setFullRangeWeight(uint256 _fullRangeWeight) external onlyManager {
-        require(_fullRangeWeight <= 1e6, "fullRangeWeight must be < 1e6");
+        require(_fullRangeWeight <= 1e6, "fullRangeWeight must be <= 1e6");
         fullRangeWeight = _fullRangeWeight;
     }
 
