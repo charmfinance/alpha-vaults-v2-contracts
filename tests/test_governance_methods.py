@@ -136,8 +136,8 @@ def test_factory_governance_methods(factory, vault, gov, user, recipient):
     # Check setting protocol fee
     with reverts("governance"):
         factory.setProtocolFee(0, {"from": user})
-    with reverts("protocolFee"):
-        factory.setProtocolFee(1e6, {"from": gov})
+    with reverts("protocolFee must be <= 200000"):
+        factory.setProtocolFee(200001, {"from": gov})
     factory.setProtocolFee(0, {"from": gov})
     assert factory.protocolFee() == 0
 

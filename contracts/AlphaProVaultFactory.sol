@@ -21,7 +21,7 @@ contract AlphaProVaultFactory is CloneFactory {
     /**
      * @param _template A deployed AlphaProVault contract
      * @param _governance Charm Finance governance address
-     * @param _protocolFee Fee multiplied by 1e6
+     * @param _protocolFee Fee multiplied by 1e6. Hard capped at 20%.
      */
     constructor(
         address _template,
@@ -31,6 +31,7 @@ contract AlphaProVaultFactory is CloneFactory {
         template = _template;
         governance = _governance;
         protocolFee = _protocolFee;
+        require(_protocolFee <= 20e4, "protocolFee must be <= 200000");
     }
 
     /**
@@ -86,10 +87,10 @@ contract AlphaProVaultFactory is CloneFactory {
 
     /**
      * @notice Change the protocol fee charged on pool fees earned from
-     * Uniswap, expressed as multiple of 1e-6.
+     * Uniswap, expressed as multiple of 1e-6. Fee is hard capped at 20%.
      */
     function setProtocolFee(uint256 _protocolFee) external onlyGovernance {
-        require(_protocolFee < 1e6, "protocolFee");
+        require(_protocolFee <= 20e4, "protocolFee must be <= 200000");
         protocolFee = _protocolFee;
     }
 

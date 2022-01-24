@@ -42,6 +42,10 @@ def test_create_vault(AlphaProVault, AlphaProVaultFactory, pool, gov):
 
 def test_constructor_checks(AlphaProVault, AlphaProVaultFactory, pool, gov):
     template = gov.deploy(AlphaProVault)
+
+    with reverts("protocolFee must be <= 200000"):
+        gov.deploy(AlphaProVaultFactory, template, gov, 200001)
+
     factory = gov.deploy(AlphaProVaultFactory, template, gov, 10000)
 
     with reverts("threshold must be > 0"):
