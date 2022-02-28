@@ -56,14 +56,9 @@ contract AlphaProVault is
 
     event Snapshot(int24 tick, uint256 totalAmount0, uint256 totalAmount1, uint256 totalSupply);
 
-    event CollectProtocol(
-        uint256 amount0,
-        uint256 amount1
-    );
+    event CollectProtocol(uint256 amount0, uint256 amount1);
 
-    event UpdateManager(
-        address manager
-    );
+    event UpdateManager(address manager);
 
     IUniswapV3Pool public pool;
     IERC20Upgradeable public token0;
@@ -148,7 +143,6 @@ contract AlphaProVault is
 
         fullLower = (TickMath.MIN_TICK / _tickSpacing) * _tickSpacing;
         fullUpper = (TickMath.MAX_TICK / _tickSpacing) * _tickSpacing;
-        (, lastTick, , , , , ) = IUniswapV3Pool(_pool).slot0();
 
         _checkThreshold(_baseThreshold, _tickSpacing);
         _checkThreshold(_limitThreshold, _tickSpacing);
@@ -413,15 +407,17 @@ contract AlphaProVault is
     }
 
     function shouldRebalance() public view override returns (bool) {
+        uint256 _lastTimestamp = lastTimestamp;
+
         // check enough time has passed
-        if (block.timestamp < lastTimestamp.add(period)) {
+        if (block.timestamp < _lastTimestamp.add(period)) {
             return false;
         }
 
         // check price has moved enough
         (, int24 tick, , , , , ) = pool.slot0();
         int24 tickMove = tick > lastTick ? tick - lastTick : lastTick - tick;
-        if (tickMove < minTickMove) {
+        if (_lastTimestamp > 0 && tickMove < minTickMove) {
             return false;
         }
 

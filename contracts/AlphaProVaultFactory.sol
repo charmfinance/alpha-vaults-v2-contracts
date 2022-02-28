@@ -10,14 +10,9 @@ import "./AlphaProVault.sol";
  * @notice  A factory contract for creating new vaults
  */
 contract AlphaProVaultFactory is CloneFactory {
+    event UpdateProtocolFee(uint256 protocolFee);
 
-    event UpdateProtocolFee(
-        uint256 protocolFee
-    );
-
-    event UpdateGovernance(
-        address governance
-    );
+    event UpdateGovernance(address governance);
 
     address public template;
     address[] public vaults;

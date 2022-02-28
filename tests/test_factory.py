@@ -9,7 +9,9 @@ def test_create_vault(AlphaProVault, AlphaProVaultFactory, pool, gov):
     assert factory.protocolFee() == 10000
     assert factory.numVaults() == 0
 
-    tx = factory.createVault(pool, gov, 100e18, 2400, 1200, 300000, 86400, 100, 200, 60, "N", "S")
+    tx = factory.createVault(
+        pool, gov, 100e18, 2400, 1200, 300000, 86400, 100, 200, 60, "N", "S"
+    )
     vault = AlphaProVault.at(tx.return_value)
     assert vault.pool() == pool
     assert vault.manager() == gov
@@ -33,7 +35,8 @@ def test_create_vault(AlphaProVault, AlphaProVaultFactory, pool, gov):
 
     assert vault.fullLower() == -887220
     assert vault.fullUpper() == 887220
-    assert vault.lastTick() == 46054
+    assert vault.lastTick() == 0
+    assert vault.lastTimestamp() == 0
 
     assert factory.numVaults() == 1
     assert factory.vaults(0) == vault
@@ -49,20 +52,31 @@ def test_constructor_checks(AlphaProVault, AlphaProVaultFactory, pool, gov):
     factory = gov.deploy(AlphaProVaultFactory, template, gov, 10000)
 
     with reverts("threshold must be > 0"):
-        factory.createVault(pool, gov, 100e18, 0, 1200, 300000, 86400, 100, 200, 60, "N", "S")
+        factory.createVault(
+            pool, gov, 100e18, 0, 1200, 300000, 86400, 100, 200, 60, "N", "S"
+        )
 
     with reverts("threshold must be > 0"):
-        factory.createVault(pool, gov, 100e18, 2400, 0, 300000, 86400, 100, 200, 60, "N", "S")
+        factory.createVault(
+            pool, gov, 100e18, 2400, 0, 300000, 86400, 100, 200, 60, "N", "S"
+        )
 
     with reverts("fullRangeWeight must be <= 1e6"):
-        factory.createVault(pool, gov, 100e18, 2400, 1200, 1000001, 86400, 100, 200, 60, "N", "S")
+        factory.createVault(
+            pool, gov, 100e18, 2400, 1200, 1000001, 86400, 100, 200, 60, "N", "S"
+        )
 
     with reverts("minTickMove must be >= 0"):
-        factory.createVault(pool, gov, 100e18, 2400, 1200, 300000, 86400, -100, 200, 60, "N", "S")
+        factory.createVault(
+            pool, gov, 100e18, 2400, 1200, 300000, 86400, -100, 200, 60, "N", "S"
+        )
 
     with reverts("maxTwapDeviation must be >= 0"):
-        factory.createVault(pool, gov, 100e18, 2400, 1200, 300000, 86400, 100, -1, 60, "N", "S")
+        factory.createVault(
+            pool, gov, 100e18, 2400, 1200, 300000, 86400, 100, -1, 60, "N", "S"
+        )
 
     with reverts("twapDuration must be > 0"):
-        factory.createVault(pool, gov, 100e18, 2400, 1200, 300000, 86400, 100, 200, 0, "N", "S")
-
+        factory.createVault(
+            pool, gov, 100e18, 2400, 1200, 300000, 86400, 100, 200, 0, "N", "S"
+        )
