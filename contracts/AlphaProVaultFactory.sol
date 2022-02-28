@@ -10,6 +10,15 @@ import "./AlphaProVault.sol";
  * @notice  A factory contract for creating new vaults
  */
 contract AlphaProVaultFactory is CloneFactory {
+
+    event UpdateProtocolFee(
+        uint256 protocolFee
+    );
+
+    event UpdateGovernance(
+        address governance
+    );
+
     address public template;
     address[] public vaults;
     mapping(address => bool) public isVault;
@@ -92,6 +101,7 @@ contract AlphaProVaultFactory is CloneFactory {
     function setProtocolFee(uint256 _protocolFee) external onlyGovernance {
         require(_protocolFee <= 20e4, "protocolFee must be <= 200000");
         protocolFee = _protocolFee;
+        emit UpdateProtocolFee(_protocolFee);
     }
 
     /**
@@ -109,6 +119,7 @@ contract AlphaProVaultFactory is CloneFactory {
     function acceptGovernance() external {
         require(msg.sender == pendingGovernance, "pendingGovernance");
         governance = msg.sender;
+        emit UpdateGovernance(msg.sender);
     }
 
     modifier onlyGovernance {

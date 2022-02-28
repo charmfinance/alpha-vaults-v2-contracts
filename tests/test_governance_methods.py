@@ -52,8 +52,11 @@ def test_vault_governance_methods(MockToken, vault, tokens, gov, user, recipient
     with reverts("pendingManager"):
         vault.acceptManager({"from": user})
     assert vault.manager() != recipient
-    vault.acceptManager({"from": recipient})
+    tx = vault.acceptManager({"from": recipient})
     assert vault.manager() == recipient
+    assert tx.events["UpdateManager"] == {
+        "manager": recipient,
+    }
 
 
 def test_collect_protocol_fees(vault, pool, router, tokens, gov, user, recipient):
@@ -77,11 +80,15 @@ def test_collect_protocol_fees(vault, pool, router, tokens, gov, user, recipient
         vault.collectProtocol(1e18, 1e4, recipient, {"from": gov})
     with reverts("SafeMath: subtraction overflow"):
         vault.collectProtocol(1e3, 1e18, recipient, {"from": gov})
-    vault.collectProtocol(1e3, 1e4, recipient, {"from": gov})
+    tx = vault.collectProtocol(1e3, 1e4, recipient, {"from": gov})
     assert vault.accruedProtocolFees0() == protocolFees0 - 1e3
     assert vault.accruedProtocolFees1() == protocolFees1 - 1e4
     assert tokens[0].balanceOf(recipient) - balance0 == 1e3
     assert tokens[1].balanceOf(recipient) - balance1 == 1e4 > 0
+    assert tx.events["CollectProtocol"] == {
+        "amount0": 1e3,
+        "amount1": 1e4,
+    }
 
 
 def test_strategy_governance_methods(vault, gov, user, recipient):
@@ -124,13 +131,6 @@ def test_strategy_governance_methods(vault, gov, user, recipient):
     vault.setTwapDuration(800, {"from": gov})
     assert vault.twapDuration() == 800
 
-    # Check gov changed in vault
-    vault.setManager(user, {"from": gov})
-    vault.acceptManager({"from": user})
-    with reverts("manager"):
-        vault.setManager(recipient, {"from": gov})
-    vault.setManager(recipient, {"from": user})
-
 
 def test_factory_governance_methods(factory, vault, gov, user, recipient):
     # Check setting protocol fee
@@ -165,8 +165,11 @@ def test_factory_governance_methods(factory, vault, gov, user, recipient):
     with reverts("pendingGovernance"):
         factory.acceptGovernance({"from": user})
     assert factory.governance() != recipient
-    factory.acceptGovernance({"from": recipient})
+    tx = factory.acceptGovernance({"from": recipient})
     assert factory.governance() == recipient
+    assert tx.events["UpdateGovernance"] == {
+        "governance": recipient,
+    }
 
     # Check only new gov can collect protocol fees
     with reverts("governance"):

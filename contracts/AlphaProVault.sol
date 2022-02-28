@@ -56,6 +56,15 @@ contract AlphaProVault is
 
     event Snapshot(int24 tick, uint256 totalAmount0, uint256 totalAmount1, uint256 totalSupply);
 
+    event CollectProtocol(
+        uint256 amount0,
+        uint256 amount1
+    );
+
+    event UpdateManager(
+        address manager
+    );
+
     IUniswapV3Pool public pool;
     IERC20Upgradeable public token0;
     IERC20Upgradeable public token1;
@@ -657,6 +666,7 @@ contract AlphaProVault is
         accruedProtocolFees1 = accruedProtocolFees1.sub(amount1);
         if (amount0 > 0) token0.safeTransfer(to, amount0);
         if (amount1 > 0) token1.safeTransfer(to, amount1);
+        emit CollectProtocol(amount0, amount1);
     }
 
     /**
@@ -742,6 +752,7 @@ contract AlphaProVault is
     function acceptManager() external {
         require(msg.sender == pendingManager, "pendingManager");
         manager = msg.sender;
+        emit UpdateManager(msg.sender);
     }
 
     modifier onlyManager {
