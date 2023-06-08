@@ -1,14 +1,12 @@
-.DS_Store
-*.swp
+node_modules
+.env
+coverage
+coverage.json
+typechain
+typechain-types
+mnemonic.txt
+yarn-error.log
+#Hardhat files
+cache
+artifacts
 
-__pycache__
-.pytest_cache
-
-node_modules/
-reports/
-build/
-
-OpenZeppelin/
-Uniswap/
-
-flat.sol

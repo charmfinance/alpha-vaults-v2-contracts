@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: GPL-3.0
 
 pragma solidity ^0.7.6;
+pragma abicoder v2;
 
-import "@openzeppelin/contracts/math/SafeMathUpgradeable.sol";
-import "@openzeppelin/contracts/token/ERC20/ERC20Upgradeable.sol";
-import "@openzeppelin/contracts/token/ERC20/IERC20Upgradeable.sol";
-import "@openzeppelin/contracts/token/ERC20/SafeERC20Upgradeable.sol";
-import "@openzeppelin/contracts/utils/ReentrancyGuardUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/math/SafeMathUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/token/ERC20/IERC20Upgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/token/ERC20/SafeERC20Upgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 import "@uniswap/v3-core/contracts/interfaces/callback/IUniswapV3MintCallback.sol";
 import "@uniswap/v3-core/contracts/interfaces/callback/IUniswapV3SwapCallback.sol";
 import "@uniswap/v3-core/contracts/interfaces/IUniswapV3Pool.sol";
@@ -16,6 +17,40 @@ import "@uniswap/v3-periphery/contracts/libraries/PositionKey.sol";
 
 import "./AlphaProVaultFactory.sol";
 import "../interfaces/IVault.sol";
+
+/**
+ * @param pool Underlying Uniswap V3 pool address
+ * @param manager Address of manager who can set parameters and call rebalance
+ * @param rebalanceDelegate Address of an additional wallet that can call rebalance
+ * @param managerFee % Fee charge by the vault manager multiplied by 1e4
+ * @param maxTotalSupply Cap on the total supply of vault shares
+ * @param baseThreshold Half of the base order width in ticks
+ * @param limitThreshold Limit order width in ticks
+ * @param fullRangeWeight Proportion of liquidity in full range multiplied by 1e6
+ * @param period Can only rebalance if this length of time (in seconds) has passed
+ * @param minTickMove Can only rebalance if price has moved at least this much
+ * @param maxTwapDeviation Max deviation (in ticks) from the TWAP during rebalance
+ * @param twapDuration TWAP duration in seconds for maxTwapDeviation check
+ * @param name name of the vault to be created
+ * @param symbol symbol of the vault to be created
+ * @param factory Address of AlphaProFactory contract
+ */
+struct VaultParams {
+    address pool;
+    address manager;
+    uint24 managerFee;
+    address rebalanceDelegate;
+    uint256 maxTotalSupply;
+    int24 baseThreshold;
+    int24 limitThreshold;
+    uint24 fullRangeWeight;
+    uint32 period;
+    int24 minTickMove;
+    int24 maxTwapDeviation;
+    uint32 twapDuration;
+    string name;
+    string symbol;
+}
 
 /**
  * @title   Alpha Pro Vault
@@ -38,7 +73,6 @@ contract AlphaProVault is
         uint256 amount0,
         uint256 amount1
     );
-
     event Withdraw(
         address indexed sender,
         address indexed to,
@@ -46,110 +80,100 @@ contract AlphaProVault is
         uint256 amount0,
         uint256 amount1
     );
-
     event CollectFees(
         uint256 feesToVault0,
         uint256 feesToVault1,
         uint256 feesToProtocol0,
-        uint256 feesToProtocol1
+        uint256 feesToProtocol1,
+        uint256 feesToManager0,
+        uint256 feesToManager1
     );
-
     event Snapshot(int24 tick, uint256 totalAmount0, uint256 totalAmount1, uint256 totalSupply);
-
     event CollectProtocol(uint256 amount0, uint256 amount1);
+    event CollectManager(uint256 amount0, uint256 amount1);
 
     event UpdateManager(address manager);
+    event UpdatePendingManager(address manager);
+    event UpdateRebalanceDelegate(address delegate);
+    event UpdateManagerFee(uint24 managerFee);
+    event UpdateBaseThreshold(int24 threshold);
+    event UpdateLimitThreshold(int24 threshold);
+    event UpdateFullRangeWeight(uint24 weight);
+    event UpdatePeriod(uint32 period);
+    event UpdateMinTickMove(int24 minTickMove);
+    event UpdateMaxTwapDeviation(int24 maxTwapDeviation);
+    event UpdateTwapDuration(uint32 twapDuration);
+    event UpdateMaxTotalSupply(uint256 maxTotalSupply);
 
-    IUniswapV3Pool public pool;
+    IUniswapV3Pool public override pool;
     IERC20Upgradeable public token0;
     IERC20Upgradeable public token1;
-    int24 public tickSpacing;
     AlphaProVaultFactory public factory;
 
-    address public manager;
-    address public pendingManager;
-    uint256 public maxTotalSupply;
-    uint256 public protocolFee;
+    address public override manager;
+    address public override pendingManager;
+    address public override rebalanceDelegate;
+    uint256 public override maxTotalSupply;
+    uint256 public override accruedProtocolFees0;
+    uint256 public override accruedProtocolFees1;
+    uint256 public override accruedManagerFees0;
+    uint256 public override accruedManagerFees1;
+    uint256 public override lastTimestamp;
 
-    int24 public baseThreshold;
-    int24 public limitThreshold;
-    uint256 public fullRangeWeight;
-    uint256 public period;
-    int24 public minTickMove;
-    int24 public maxTwapDeviation;
-    uint32 public twapDuration;
+    uint32 public override period;
+    uint24 public override protocolFee;
+    uint24 public override managerFee;
+    uint24 public override pendingManagerFee;
+    uint24 public override fullRangeWeight;
+    int24 public override baseThreshold;
+    int24 public override limitThreshold;
+    int24 public override minTickMove;
+    int24 public override tickSpacing;
+    int24 public override maxTwapDeviation;
+    uint32 public override twapDuration;
+    int24 public override fullLower;
+    int24 public override fullUpper;
+    int24 public override baseLower;
+    int24 public override baseUpper;
+    int24 public override limitLower;
+    int24 public override limitUpper;
+    int24 public override lastTick;
 
-    int24 public fullLower;
-    int24 public fullUpper;
-    int24 public baseLower;
-    int24 public baseUpper;
-    int24 public limitLower;
-    int24 public limitUpper;
-    uint256 public accruedProtocolFees0;
-    uint256 public accruedProtocolFees1;
-    uint256 public lastTimestamp;
-    int24 public lastTick;
-
-    /**
-     * @param _pool Underlying Uniswap V3 pool address
-     * @param _manager Address of manager who can set parameters
-     * @param _maxTotalSupply Cap on total supply
-     * @param _baseThreshold Half of the base order width in ticks
-     * @param _limitThreshold Limit order width in ticks
-     * @param _fullRangeWeight Proportion of liquidity in full range multiplied by 1e6
-     * @param _period Can only rebalance if this length of time has passed
-     * @param _minTickMove Can only rebalance if price has moved at least this much
-     * @param _maxTwapDeviation Max deviation from TWAP during rebalance
-     * @param _twapDuration TWAP duration in seconds for deviation check
-     * @param _factory Address of AlphaProFactory contract
-     */
-    function initialize(
-        address _pool,
-        address _manager,
-        uint256 _maxTotalSupply,
-        int24 _baseThreshold,
-        int24 _limitThreshold,
-        uint256 _fullRangeWeight,
-        uint256 _period,
-        int24 _minTickMove,
-        int24 _maxTwapDeviation,
-        uint32 _twapDuration,
-        address _factory,
-        string memory name,
-        string memory symbol
-    ) public initializer {
-        __ERC20_init(name, symbol);
+    function initialize(VaultParams memory _params, address _factory) public initializer {
+        __ERC20_init(_params.name, _params.symbol);
         __ReentrancyGuard_init();
 
-        pool = IUniswapV3Pool(_pool);
-        token0 = IERC20Upgradeable(IUniswapV3Pool(_pool).token0());
-        token1 = IERC20Upgradeable(IUniswapV3Pool(_pool).token1());
+        pool = IUniswapV3Pool(_params.pool);
+        token0 = IERC20Upgradeable(pool.token0());
+        token1 = IERC20Upgradeable(pool.token1());
 
-        int24 _tickSpacing = IUniswapV3Pool(_pool).tickSpacing();
+        int24 _tickSpacing = pool.tickSpacing();
         tickSpacing = _tickSpacing;
 
-        manager = _manager;
-        maxTotalSupply = _maxTotalSupply;
-        baseThreshold = _baseThreshold;
-        limitThreshold = _limitThreshold;
-        fullRangeWeight = _fullRangeWeight;
-        period = _period;
-        minTickMove = _minTickMove;
-        maxTwapDeviation = _maxTwapDeviation;
-        twapDuration = _twapDuration;
+        manager = _params.manager;
+        rebalanceDelegate = _params.rebalanceDelegate;
+        pendingManagerFee = _params.managerFee;
+        maxTotalSupply = _params.maxTotalSupply;
+        baseThreshold = _params.baseThreshold;
+        limitThreshold = _params.limitThreshold;
+        fullRangeWeight = _params.fullRangeWeight;
+        period = _params.period;
+        minTickMove = _params.minTickMove;
+        maxTwapDeviation = _params.maxTwapDeviation;
+        twapDuration = _params.twapDuration;
 
         factory = AlphaProVaultFactory(_factory);
-        protocolFee = factory.protocolFee();
 
         fullLower = (TickMath.MIN_TICK / _tickSpacing) * _tickSpacing;
         fullUpper = (TickMath.MAX_TICK / _tickSpacing) * _tickSpacing;
 
-        _checkThreshold(_baseThreshold, _tickSpacing);
-        _checkThreshold(_limitThreshold, _tickSpacing);
-        require(_fullRangeWeight <= 1e6, "fullRangeWeight must be <= 1e6");
-        require(_minTickMove >= 0, "minTickMove must be >= 0");
-        require(_maxTwapDeviation >= 0, "maxTwapDeviation must be >= 0");
-        require(_twapDuration > 0, "twapDuration must be > 0");
+        _checkThreshold(_params.baseThreshold, _tickSpacing);
+        _checkThreshold(_params.limitThreshold, _tickSpacing);
+        require(_params.fullRangeWeight <= 1e6, "fullRangeWeight must be <= 1e6");
+        require(_params.minTickMove >= 0, "minTickMove must be >= 0");
+        require(_params.maxTwapDeviation >= 0, "maxTwapDeviation must be >= 0");
+        require(_params.twapDuration > 0, "twapDuration must be > 0");
+        require(_params.managerFee <= 20e4, "managerFee must be <= 200000");
     }
 
     /**
@@ -177,11 +201,7 @@ contract AlphaProVault is
         external
         override
         nonReentrant
-        returns (
-            uint256 shares,
-            uint256 amount0,
-            uint256 amount1
-        )
+        returns (uint256 shares, uint256 amount0, uint256 amount1)
     {
         require(amount0Desired > 0 || amount1Desired > 0, "amount0Desired or amount1Desired");
         require(to != address(0) && to != address(this), "to");
@@ -220,15 +240,10 @@ contract AlphaProVault is
     /// @dev Calculates the largest possible `amount0` and `amount1` such that
     /// they're in the same proportion as total amounts, but not greater than
     /// `amount0Desired` and `amount1Desired` respectively.
-    function _calcSharesAndAmounts(uint256 amount0Desired, uint256 amount1Desired)
-        internal
-        view
-        returns (
-            uint256 shares,
-            uint256 amount0,
-            uint256 amount1
-        )
-    {
+    function _calcSharesAndAmounts(
+        uint256 amount0Desired,
+        uint256 amount1Desired
+    ) internal view returns (uint256 shares, uint256 amount0, uint256 amount1) {
         uint256 totalSupply = totalSupply();
         (uint256 total0, uint256 total1) = getTotalAmounts();
 
@@ -239,7 +254,7 @@ contract AlphaProVault is
             // For first deposit, just use the amounts desired
             amount0 = amount0Desired;
             amount1 = amount1Desired;
-            shares = amount0 > amount1 ? amount0 : amount1;
+            shares = (amount0 > amount1 ? amount0 : amount1).add(10 ** 6);
         } else if (total0 == 0) {
             amount1 = amount1Desired;
             shares = amount1.mul(totalSupply).div(total1);
@@ -286,12 +301,24 @@ contract AlphaProVault is
         amount1 = getBalance1().mul(shares).div(totalSupply);
 
         // Withdraw proportion of liquidity from Uniswap pool
-        (uint256 fullAmount0, uint256 fullAmount1) =
-            _burnLiquidityShare(fullLower, fullUpper, shares, totalSupply);
-        (uint256 baseAmount0, uint256 baseAmount1) =
-            _burnLiquidityShare(baseLower, baseUpper, shares, totalSupply);
-        (uint256 limitAmount0, uint256 limitAmount1) =
-            _burnLiquidityShare(limitLower, limitUpper, shares, totalSupply);
+        (uint256 fullAmount0, uint256 fullAmount1) = _burnLiquidityShare(
+            fullLower,
+            fullUpper,
+            shares,
+            totalSupply
+        );
+        (uint256 baseAmount0, uint256 baseAmount1) = _burnLiquidityShare(
+            baseLower,
+            baseUpper,
+            shares,
+            totalSupply
+        );
+        (uint256 limitAmount0, uint256 limitAmount1) = _burnLiquidityShare(
+            limitLower,
+            limitUpper,
+            shares,
+            totalSupply
+        );
 
         // Sum up total amounts owed to recipient
         amount0 = amount0.add(fullAmount0).add(baseAmount0).add(limitAmount0);
@@ -317,8 +344,11 @@ contract AlphaProVault is
         uint256 liquidity = uint256(totalLiquidity).mul(shares).div(totalSupply);
 
         if (liquidity > 0) {
-            (uint256 burned0, uint256 burned1, uint256 fees0, uint256 fees1) =
-                _burnAndCollect(tickLower, tickUpper, _toUint128(liquidity));
+            (uint256 burned0, uint256 burned1, uint256 fees0, uint256 fees1) = _burnAndCollect(
+                tickLower,
+                tickUpper,
+                _toUint128(liquidity)
+            );
 
             // Add share of fees
             amount0 = burned0.add(fees0.mul(shares).div(totalSupply));
@@ -335,7 +365,13 @@ contract AlphaProVault is
      * amount is then placed as a single-sided bid or ask order.
      */
     function rebalance() external override nonReentrant {
-        require(shouldRebalance(), "cannot rebalance");
+        checkCanRebalance();
+        if (rebalanceDelegate != address(0)) {
+            require(
+                msg.sender == manager || msg.sender == rebalanceDelegate,
+                "rebalanceDelegate"
+            );
+        }
 
         // Withdraw all current liquidity from Uniswap pool
         int24 _fullLower = fullLower;
@@ -368,10 +404,15 @@ contract AlphaProVault is
 
         // Place full range order on Uniswap
         {
-            uint128 maxFullLiquidity =
-                _liquidityForAmounts(_fullLower, _fullUpper, balance0, balance1);
-            uint128 fullLiquidity =
-                _toUint128(uint256(maxFullLiquidity).mul(fullRangeWeight).div(1e6));
+            uint128 maxFullLiquidity = _liquidityForAmounts(
+                _fullLower,
+                _fullUpper,
+                balance0,
+                balance1
+            );
+            uint128 fullLiquidity = _toUint128(
+                uint256(maxFullLiquidity).mul(fullRangeWeight).div(1e6)
+            );
             _mintLiquidity(_fullLower, _fullUpper, fullLiquidity);
         }
 
@@ -379,8 +420,12 @@ contract AlphaProVault is
         balance0 = getBalance0();
         balance1 = getBalance1();
         {
-            uint128 baseLiquidity =
-                _liquidityForAmounts(_baseLower, _baseUpper, balance0, balance1);
+            uint128 baseLiquidity = _liquidityForAmounts(
+                _baseLower,
+                _baseUpper,
+                balance0,
+                balance1
+            );
             _mintLiquidity(_baseLower, _baseUpper, baseLiquidity);
             (baseLower, baseUpper) = (_baseLower, _baseUpper);
         }
@@ -404,40 +449,32 @@ contract AlphaProVault is
         // Update fee only at each rebalance, so that if fee is increased
         // it won't be applied retroactively to current open positions
         protocolFee = factory.protocolFee();
+        managerFee = pendingManagerFee;
     }
 
-    function shouldRebalance() public view override returns (bool) {
+    function checkCanRebalance() public view override {
         uint256 _lastTimestamp = lastTimestamp;
 
         // check enough time has passed
-        if (block.timestamp < _lastTimestamp.add(period)) {
-            return false;
-        }
+        require(block.timestamp >= _lastTimestamp.add(period), "PE");
 
         // check price has moved enough
         (, int24 tick, , , , , ) = pool.slot0();
         int24 tickMove = tick > lastTick ? tick - lastTick : lastTick - tick;
-        if (_lastTimestamp > 0 && tickMove < minTickMove) {
-            return false;
-        }
+        require(_lastTimestamp == 0 || tickMove >= minTickMove, "TM");
 
         // check price near twap
         int24 twap = getTwap();
         int24 twapDeviation = tick > twap ? tick - twap : twap - tick;
-        if (twapDeviation > maxTwapDeviation) {
-            return false;
-        }
+        require(twapDeviation <= maxTwapDeviation, "TP");
 
         // check price not too close to boundary
         int24 maxThreshold = baseThreshold > limitThreshold ? baseThreshold : limitThreshold;
-        if (
-            tick < TickMath.MIN_TICK + maxThreshold + tickSpacing ||
-            tick > TickMath.MAX_TICK - maxThreshold - tickSpacing
-        ) {
-            return false;
-        }
-
-        return true;
+        require(
+            tick >= TickMath.MIN_TICK + maxThreshold + tickSpacing &&
+                tick <= TickMath.MAX_TICK - maxThreshold - tickSpacing,
+            "PB"
+        );
     }
 
     /// @dev Fetches time-weighted average price in ticks from Uniswap pool.
@@ -473,51 +510,55 @@ contract AlphaProVault is
         uint128 liquidity
     )
         internal
-        returns (
-            uint256 burned0,
-            uint256 burned1,
-            uint256 feesToVault0,
-            uint256 feesToVault1
-        )
+        returns (uint256 burned0, uint256 burned1, uint256 feesToVault0, uint256 feesToVault1)
     {
         if (liquidity > 0) {
             (burned0, burned1) = pool.burn(tickLower, tickUpper, liquidity);
         }
 
         // Collect all owed tokens including earned fees
-        (uint256 collect0, uint256 collect1) =
-            pool.collect(
-                address(this),
-                tickLower,
-                tickUpper,
-                type(uint128).max,
-                type(uint128).max
-            );
+        (uint256 collect0, uint256 collect1) = pool.collect(
+            address(this),
+            tickLower,
+            tickUpper,
+            type(uint128).max,
+            type(uint128).max
+        );
 
         feesToVault0 = collect0.sub(burned0);
         feesToVault1 = collect1.sub(burned1);
-        uint256 feesToProtocol0;
-        uint256 feesToProtocol1;
 
         // Update accrued protocol fees
         uint256 _protocolFee = protocolFee;
-        if (_protocolFee > 0) {
-            feesToProtocol0 = feesToVault0.mul(_protocolFee).div(1e6);
-            feesToProtocol1 = feesToVault1.mul(_protocolFee).div(1e6);
-            feesToVault0 = feesToVault0.sub(feesToProtocol0);
-            feesToVault1 = feesToVault1.sub(feesToProtocol1);
-            accruedProtocolFees0 = accruedProtocolFees0.add(feesToProtocol0);
-            accruedProtocolFees1 = accruedProtocolFees1.add(feesToProtocol1);
+        uint256 feesToProtocol0 = feesToVault0.mul(_protocolFee).div(1e6);
+        uint256 feesToProtocol1 = feesToVault1.mul(_protocolFee).div(1e6);
+        accruedProtocolFees0 = accruedProtocolFees0.add(feesToProtocol0);
+        accruedProtocolFees1 = accruedProtocolFees1.add(feesToProtocol1);
+
+        // Update accrued manager fees
+        uint256 _managerFee = managerFee;
+        uint256 feesToManager0;
+        uint256 feesToManager1;
+        if (_managerFee > 0) {
+            feesToManager0 = feesToVault0.mul(_managerFee).div(1e6);
+            feesToManager1 = feesToVault1.mul(_managerFee).div(1e6);
+            accruedManagerFees0 = accruedManagerFees0.add(feesToManager0);
+            accruedManagerFees1 = accruedManagerFees1.add(feesToManager1);
         }
-        emit CollectFees(feesToVault0, feesToVault1, feesToProtocol0, feesToProtocol1);
+        feesToVault0 = feesToVault0.sub(feesToProtocol0).sub(feesToManager0);
+        feesToVault1 = feesToVault1.sub(feesToProtocol1).sub(feesToManager1);
+        emit CollectFees(
+            feesToVault0,
+            feesToVault1,
+            feesToProtocol0,
+            feesToProtocol1,
+            feesToManager0,
+            feesToManager1
+        );
     }
 
     /// @dev Deposits liquidity in a range on the Uniswap pool.
-    function _mintLiquidity(
-        int24 tickLower,
-        int24 tickUpper,
-        uint128 liquidity
-    ) internal {
+    function _mintLiquidity(int24 tickLower, int24 tickUpper, uint128 liquidity) internal {
         if (liquidity > 0) {
             pool.mint(address(this), tickLower, tickUpper, liquidity, "");
         }
@@ -531,8 +572,10 @@ contract AlphaProVault is
     function getTotalAmounts() public view override returns (uint256 total0, uint256 total1) {
         (uint256 fullAmount0, uint256 fullAmount1) = getPositionAmounts(fullLower, fullUpper);
         (uint256 baseAmount0, uint256 baseAmount1) = getPositionAmounts(baseLower, baseUpper);
-        (uint256 limitAmount0, uint256 limitAmount1) =
-            getPositionAmounts(limitLower, limitUpper);
+        (uint256 limitAmount0, uint256 limitAmount1) = getPositionAmounts(
+            limitLower,
+            limitUpper
+        );
         total0 = getBalance0().add(fullAmount0).add(baseAmount0).add(limitAmount0);
         total1 = getBalance1().add(fullAmount1).add(baseAmount1).add(limitAmount1);
     }
@@ -542,17 +585,18 @@ contract AlphaProVault is
      * owed fees but excludes the proportion of fees that will be paid to the
      * protocol. Doesn't include fees accrued since last poke.
      */
-    function getPositionAmounts(int24 tickLower, int24 tickUpper)
-        public
-        view
-        returns (uint256 amount0, uint256 amount1)
-    {
-        (uint128 liquidity, , , uint128 tokensOwed0, uint128 tokensOwed1) =
-            _position(tickLower, tickUpper);
+    function getPositionAmounts(
+        int24 tickLower,
+        int24 tickUpper
+    ) public view returns (uint256 amount0, uint256 amount1) {
+        (uint128 liquidity, , , uint128 tokensOwed0, uint128 tokensOwed1) = _position(
+            tickLower,
+            tickUpper
+        );
         (amount0, amount1) = _amountsForLiquidity(tickLower, tickUpper, liquidity);
 
-        // Subtract protocol fees
-        uint256 oneMinusFee = uint256(1e6).sub(protocolFee);
+        // Subtract protocol and manager fees
+        uint256 oneMinusFee = uint256(1e6).sub(protocolFee).sub(managerFee);
         amount0 = amount0.add(uint256(tokensOwed0).mul(oneMinusFee).div(1e6));
         amount1 = amount1.add(uint256(tokensOwed1).mul(oneMinusFee).div(1e6));
     }
@@ -560,29 +604,24 @@ contract AlphaProVault is
     /**
      * @notice Balance of token0 in vault not used in any position.
      */
-    function getBalance0() public view returns (uint256) {
-        return token0.balanceOf(address(this)).sub(accruedProtocolFees0);
+    function getBalance0() public view override returns (uint256) {
+        return
+            token0.balanceOf(address(this)).sub(accruedProtocolFees0).sub(accruedManagerFees0);
     }
 
     /**
      * @notice Balance of token1 in vault not used in any position.
      */
-    function getBalance1() public view returns (uint256) {
-        return token1.balanceOf(address(this)).sub(accruedProtocolFees1);
+    function getBalance1() public view override returns (uint256) {
+        return
+            token1.balanceOf(address(this)).sub(accruedProtocolFees1).sub(accruedManagerFees1);
     }
 
     /// @dev Wrapper around `IUniswapV3Pool.positions()`.
-    function _position(int24 tickLower, int24 tickUpper)
-        internal
-        view
-        returns (
-            uint128,
-            uint256,
-            uint256,
-            uint128,
-            uint128
-        )
-    {
+    function _position(
+        int24 tickLower,
+        int24 tickUpper
+    ) internal view returns (uint128, uint256, uint256, uint128, uint128) {
         bytes32 positionKey = PositionKey.compute(address(this), tickLower, tickUpper);
         return pool.positions(positionKey);
     }
@@ -652,27 +691,34 @@ contract AlphaProVault is
     /**
      * @notice Used to collect accumulated protocol fees.
      */
-    function collectProtocol(
-        uint256 amount0,
-        uint256 amount1,
-        address to
-    ) external {
+    function collectProtocol(address to) external {
         require(msg.sender == factory.governance(), "governance");
-        accruedProtocolFees0 = accruedProtocolFees0.sub(amount0);
-        accruedProtocolFees1 = accruedProtocolFees1.sub(amount1);
-        if (amount0 > 0) token0.safeTransfer(to, amount0);
-        if (amount1 > 0) token1.safeTransfer(to, amount1);
-        emit CollectProtocol(amount0, amount1);
+        uint256 _accruedProtocolFees0 = accruedProtocolFees0;
+        uint256 _accruedProtocolFees1 = accruedProtocolFees1;
+        accruedProtocolFees0 = 0;
+        accruedProtocolFees1 = 0;
+        if (_accruedProtocolFees0 > 0) token0.safeTransfer(to, _accruedProtocolFees0);
+        if (_accruedProtocolFees1 > 0) token1.safeTransfer(to, _accruedProtocolFees1);
+        emit CollectProtocol(_accruedProtocolFees0, _accruedProtocolFees1);
+    }
+
+    /*
+     * @notice Used to collect accumulated manager fees.
+     */
+    function collectManager(address to) external onlyManager {
+        uint256 _accruedManagerFees0 = accruedManagerFees0;
+        uint256 _accruedManagerFees1 = accruedManagerFees1;
+        accruedManagerFees0 = 0;
+        accruedManagerFees1 = 0;
+        if (_accruedManagerFees0 > 0) token0.safeTransfer(to, _accruedManagerFees0);
+        if (_accruedManagerFees1 > 0) token1.safeTransfer(to, _accruedManagerFees1);
+        emit CollectManager(_accruedManagerFees0, _accruedManagerFees1);
     }
 
     /**
      * @notice Removes tokens accidentally sent to this vault.
      */
-    function sweep(
-        IERC20Upgradeable token,
-        uint256 amount,
-        address to
-    ) external onlyManager {
+    function sweep(IERC20Upgradeable token, uint256 amount, address to) external onlyManager {
         require(token != token0 && token != token1, "token");
         token.safeTransfer(to, amount);
     }
@@ -680,35 +726,42 @@ contract AlphaProVault is
     function setBaseThreshold(int24 _baseThreshold) external onlyManager {
         _checkThreshold(_baseThreshold, tickSpacing);
         baseThreshold = _baseThreshold;
+        emit UpdateBaseThreshold(_baseThreshold);
     }
 
     function setLimitThreshold(int24 _limitThreshold) external onlyManager {
         _checkThreshold(_limitThreshold, tickSpacing);
         limitThreshold = _limitThreshold;
+        emit UpdateLimitThreshold(_limitThreshold);
     }
 
-    function setFullRangeWeight(uint256 _fullRangeWeight) external onlyManager {
+    function setFullRangeWeight(uint24 _fullRangeWeight) external onlyManager {
         require(_fullRangeWeight <= 1e6, "fullRangeWeight must be <= 1e6");
         fullRangeWeight = _fullRangeWeight;
+        emit UpdateFullRangeWeight(_fullRangeWeight);
     }
 
-    function setPeriod(uint256 _period) external onlyManager {
+    function setPeriod(uint32 _period) external onlyManager {
         period = _period;
+        emit UpdatePeriod(_period);
     }
 
     function setMinTickMove(int24 _minTickMove) external onlyManager {
         require(_minTickMove >= 0, "minTickMove must be >= 0");
         minTickMove = _minTickMove;
+        emit UpdateMinTickMove(_minTickMove);
     }
 
     function setMaxTwapDeviation(int24 _maxTwapDeviation) external onlyManager {
         require(_maxTwapDeviation >= 0, "maxTwapDeviation must be >= 0");
         maxTwapDeviation = _maxTwapDeviation;
+        emit UpdateMaxTwapDeviation(_maxTwapDeviation);
     }
 
     function setTwapDuration(uint32 _twapDuration) external onlyManager {
         require(_twapDuration > 0, "twapDuration must be > 0");
         twapDuration = _twapDuration;
+        emit UpdateTwapDuration(_twapDuration);
     }
 
     /**
@@ -719,6 +772,7 @@ contract AlphaProVault is
      */
     function setMaxTotalSupply(uint256 _maxTotalSupply) external onlyManager {
         maxTotalSupply = _maxTotalSupply;
+        emit UpdateMaxTotalSupply(_maxTotalSupply);
     }
 
     /**
@@ -739,6 +793,22 @@ contract AlphaProVault is
      */
     function setManager(address _manager) external onlyManager {
         pendingManager = _manager;
+        emit UpdatePendingManager(_manager);
+    }
+
+    function setRebalanceDelegate(address _rebalanceDelegate) external onlyManager {
+        rebalanceDelegate = _rebalanceDelegate;
+        emit UpdateRebalanceDelegate(_rebalanceDelegate);
+    }
+
+    /**
+     * @notice Change the manager fee charged on pool fees earned from
+     * Uniswap, expressed as multiple of 1e-6. Fee is hard capped at 20%.
+     */
+    function setManagerFee(uint24 _pendingManagerFee) external onlyManager {
+        require(_pendingManagerFee <= 20e4, "managerFee must be <= 200000");
+        pendingManagerFee = _pendingManagerFee;
+        emit UpdateManagerFee(_pendingManagerFee);
     }
 
     /**
@@ -751,7 +821,7 @@ contract AlphaProVault is
         emit UpdateManager(msg.sender);
     }
 
-    modifier onlyManager {
+    modifier onlyManager() {
         require(msg.sender == manager, "manager");
         _;
     }

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0
 
 pragma solidity ^0.7.6;
+pragma abicoder v2;
 
 import "./CloneFactory.sol";
 import "./AlphaProVault.sol";
@@ -10,7 +11,8 @@ import "./AlphaProVault.sol";
  * @notice  A factory contract for creating new vaults
  */
 contract AlphaProVaultFactory is CloneFactory {
-    event UpdateProtocolFee(uint256 protocolFee);
+    event NewVault(address vault);
+    event UpdateProtocolFee(uint24 protocolFee);
 
     event UpdateGovernance(address governance);
 
@@ -20,18 +22,14 @@ contract AlphaProVaultFactory is CloneFactory {
 
     address public governance;
     address public pendingGovernance;
-    uint256 public protocolFee;
+    uint24 public protocolFee;
 
     /**
      * @param _template A deployed AlphaProVault contract
      * @param _governance Charm Finance governance address
      * @param _protocolFee Fee multiplied by 1e6. Hard capped at 20%.
      */
-    constructor(
-        address _template,
-        address _governance,
-        uint256 _protocolFee
-    ) {
+    constructor(address _template, address _governance, uint24 _protocolFee) {
         template = _template;
         governance = _governance;
         protocolFee = _protocolFee;
@@ -40,49 +38,14 @@ contract AlphaProVaultFactory is CloneFactory {
 
     /**
      * @notice Create a new Alpha Pro Vault
-     * @param pool Underlying Uniswap V3 pool address
-     * @param manager Address of manager who can set parameters
-     * @param maxTotalSupply Cap on total supply
-     * @param baseThreshold Half of the base order width in ticks
-     * @param limitThreshold Half of the limit order width in ticks
-     * @param fullRangeWeight Proportion of liquidity in full range multiplied by 1e6
-     * @param period Can only rebalance if this length of time has passed
-     * @param minTickMove Can only rebalance if price has moved at least this much
-     * @param maxTwapDeviation Max deviation from TWAP during rebalance
-     * @param twapDuration TWAP duration in seconds for deviation check
+     * @param params InitizalizeParams Underlying Uniswap V3 pool address
      */
-    function createVault(
-        address pool,
-        address manager,
-        uint256 maxTotalSupply,
-        int24 baseThreshold,
-        int24 limitThreshold,
-        uint256 fullRangeWeight,
-        uint256 period,
-        int24 minTickMove,
-        int24 maxTwapDeviation,
-        uint32 twapDuration,
-        string memory name,
-        string memory symbol
-    ) external returns (address vaultAddress) {
+    function createVault(VaultParams calldata params) external returns (address vaultAddress) {
         vaultAddress = createClone(template);
-        AlphaProVault(vaultAddress).initialize(
-            pool,
-            manager,
-            maxTotalSupply,
-            baseThreshold,
-            limitThreshold,
-            fullRangeWeight,
-            period,
-            minTickMove,
-            maxTwapDeviation,
-            twapDuration,
-            address(this),
-            name,
-            symbol
-        );
+        AlphaProVault(vaultAddress).initialize(params, address(this));
         vaults.push(vaultAddress);
         isVault[vaultAddress] = true;
+        emit NewVault(vaultAddress);
     }
 
     function numVaults() external view returns (uint256) {
@@ -93,7 +56,7 @@ contract AlphaProVaultFactory is CloneFactory {
      * @notice Change the protocol fee charged on pool fees earned from
      * Uniswap, expressed as multiple of 1e-6. Fee is hard capped at 20%.
      */
-    function setProtocolFee(uint256 _protocolFee) external onlyGovernance {
+    function setProtocolFee(uint24 _protocolFee) external onlyGovernance {
         require(_protocolFee <= 20e4, "protocolFee must be <= 200000");
         protocolFee = _protocolFee;
         emit UpdateProtocolFee(_protocolFee);
@@ -117,7 +80,7 @@ contract AlphaProVaultFactory is CloneFactory {
         emit UpdateGovernance(msg.sender);
     }
 
-    modifier onlyGovernance {
+    modifier onlyGovernance() {
         require(msg.sender == governance, "governance");
         _;
     }
