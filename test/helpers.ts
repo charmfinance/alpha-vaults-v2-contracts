@@ -242,3 +242,11 @@ export const deployPeriphery = async () => {
 
   return { peripheryContract };
 };
+
+export const deployManagerStore = async () => {
+  const managerStore = await ethers.getContractFactory("ManagerStore");
+  const managerStoreContract = await managerStore.deploy();
+
+  return { managerStoreContract };
+}
+

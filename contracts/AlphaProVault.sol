@@ -110,6 +110,8 @@ contract AlphaProVault is
     IERC20Upgradeable public token1;
     AlphaProVaultFactory public factory;
 
+    uint256 public constant MINIMUM_LIQUIDITY = 1e3;
+
     address public override manager;
     address public override pendingManager;
     address public override rebalanceDelegate;
@@ -217,6 +219,11 @@ contract AlphaProVault is
         require(amount0 >= amount0Min, "amount0Min");
         require(amount1 >= amount1Min, "amount1Min");
 
+        // Permanently lock the first MINIMUM_LIQUIDITY tokens
+        if (totalSupply() == 0) {
+            _mint(address(factory), MINIMUM_LIQUIDITY);
+        }
+
         // Pull in tokens from sender
         if (amount0 > 0) token0.safeTransferFrom(msg.sender, address(this), amount0);
         if (amount1 > 0) token1.safeTransferFrom(msg.sender, address(this), amount1);
@@ -254,7 +261,7 @@ contract AlphaProVault is
             // For first deposit, just use the amounts desired
             amount0 = amount0Desired;
             amount1 = amount1Desired;
-            shares = (amount0 > amount1 ? amount0 : amount1).add(10 ** 6);
+            shares = (amount0 > amount1 ? amount0 : amount1).sub(MINIMUM_LIQUIDITY);
         } else if (total0 == 0) {
             amount1 = amount1Desired;
             shares = amount1.mul(totalSupply).div(total1);

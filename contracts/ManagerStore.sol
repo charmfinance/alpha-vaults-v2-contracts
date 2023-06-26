@@ -23,7 +23,7 @@ contract ManagerStore is Ownable {
             allManagers.push(msg.sender);
         } else if (managersMap[msg.sender].isAuthorized == true) {
             // remove manager from authorizedManagers list if it is already authorized
-            deauthorizeManager(msg.sender);
+            _deauthorizeManager(msg.sender);
         }
         managersMap[msg.sender] = Manager(msg.sender, ipfsHash, false);
 
@@ -43,7 +43,10 @@ contract ManagerStore is Ownable {
     function deauthorizeManager(address managerAddress) public onlyOwner {
         require(managerAddress != address(0), "Invalid manager address");
         require(managersMap[managerAddress].isAuthorized, "Manager not authorized");
+        _deauthorizeManager(managerAddress);
+    }
 
+    function _deauthorizeManager(address managerAddress) private {
         managersMap[managerAddress].isAuthorized = false;
 
         for (uint256 i = 0; i < authorizedManagers.length; i++) {

@@ -21,8 +21,8 @@ describe("Deposit and Withdraw", function() {
   });
 
   [
-    [0, 1],
-    [1, 0],
+    [0, 1e4],
+    [1e4, 0],
     [1e10, 0],
     [0, 1e10],
     [1e4, 1e10],
@@ -35,27 +35,32 @@ describe("Deposit and Withdraw", function() {
         usdcContract,
         wethContract
       } = await loadFixture(deployFactory);
-      const [, user] = await ethers.getSigners();
 
-      const balance0 = await usdcContract.balanceOf(user.address);
-      const balance1 = await wethContract.balanceOf(user.address);
-      await usdcContract
-        .connect(user)
-        .approve(vaultContract.address, ethers.constants.MaxUint256);
-      await wethContract
-        .connect(user)
-        .approve(vaultContract.address, ethers.constants.MaxUint256);
-      await vaultContract
-        .connect(user)
-        .deposit(amount0Desired, amount1Desired, 0, 0, user.address);
+      const balance0 = await usdcContract.balanceOf(owner.address);
+      const balance1 = await wethContract.balanceOf(owner.address);
+      await usdcContract.approve(
+        vaultContract.address,
+        ethers.constants.MaxUint256
+      );
+      await wethContract.approve(
+        vaultContract.address,
+        ethers.constants.MaxUint256
+      );
+      await vaultContract.deposit(
+        amount0Desired,
+        amount1Desired,
+        0,
+        0,
+        owner.address
+      );
 
-      const shares = await vaultContract.balanceOf(user.address);
+      const shares = await vaultContract.balanceOf(owner.address);
 
       expect(shares).to.gt(0);
-      expect(balance0.sub(await usdcContract.balanceOf(user.address))).to.eq(
+      expect(balance0.sub(await usdcContract.balanceOf(owner.address))).to.eq(
         amount0Desired
       );
-      expect(balance1.sub(await wethContract.balanceOf(user.address))).to.eq(
+      expect(balance1.sub(await wethContract.balanceOf(owner.address))).to.eq(
         amount1Desired
       );
     });
@@ -111,11 +116,10 @@ describe("Deposit and Withdraw", function() {
     const [owner] = await ethers.getSigners();
 
     const vaultTokenBalance = await vaultContract.balanceOf(owner.address);
+    expect(vaultTokenBalance).to.eq("9999999999999999000");
 
-    expect(vaultTokenBalance).to.eq("10000000000001000000");
-    expect(await vaultContract.totalSupply()).to.eq(
-      "10000000000001000000"
-    );
+    const beforeTotalSupply = await vaultContract.totalSupply();
+    expect(beforeTotalSupply).to.eq("10000000000000000000");
 
     const wethUserBalanceBefore = await wethContract.balanceOf(owner.address);
     const usdcUserBalanceBefore = await usdcContract.balanceOf(owner.address);
@@ -123,12 +127,20 @@ describe("Deposit and Withdraw", function() {
     await vaultContract.withdraw(vaultTokenBalance, 0, 0, owner.address);
 
     expect(await vaultContract.balanceOf(owner.address)).to.eq(0);
-    expect(await vaultContract.totalSupply()).to.eq(0);
-    expect(await usdcContract.balanceOf(owner.address)).to.eq(
-      total0.add(usdcUserBalanceBefore)
+    expect(await vaultContract.totalSupply()).to.eq(1000);
+    expect(await usdcContract.balanceOf(owner.address)).to.approximately(
+      total0
+        .mul(beforeTotalSupply.sub(1e3))
+        .div(beforeTotalSupply)
+        .add(usdcUserBalanceBefore),
+      1
     );
-    expect(await wethContract.balanceOf(owner.address)).to.eq(
-      total1.add(wethUserBalanceBefore)
+    expect(await wethContract.balanceOf(owner.address)).to.approximately(
+      total1
+        .mul(beforeTotalSupply.sub(1e3))
+        .div(beforeTotalSupply)
+        .add(wethUserBalanceBefore),
+      1e3
     );
   });
 

@@ -16,7 +16,7 @@ contract AlphaProVaultFactory is CloneFactory {
 
     event UpdateGovernance(address governance);
 
-    address public template;
+    address public immutable template;
     address[] public vaults;
     mapping(address => bool) public isVault;
 
